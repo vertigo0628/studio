@@ -1,5 +1,5 @@
-# Firebase Studio
+# DuetChat
 
-This is a NextJS starter in Firebase Studio.
+# This is a NextJS  program.
 
-To get started, take a look at src/app/page.tsx.
+# To get started, take a look at src/app/page.tsx.

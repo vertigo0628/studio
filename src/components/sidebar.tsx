@@ -20,6 +20,8 @@ export default function Sidebar() {
     const currentRoomId = params?.roomId as string;
 
     useEffect(() => {
+        if (!db) return;
+
         const roomsRef = collection(db, 'rooms');
         const q = query(roomsRef, orderBy('updatedAt', 'desc'));
 
@@ -35,6 +37,7 @@ export default function Sidebar() {
     }, []);
 
     const handleCreateRoom = async () => {
+        if (!db) return;
         try {
             // Pick a random avatar for the room
             const randomAvatar = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)].imageUrl;

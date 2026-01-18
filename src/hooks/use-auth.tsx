@@ -5,9 +5,9 @@ import { useState, useEffect, createContext, useContext } from "react";
 import {
     signInAnonymously,
     onAuthStateChanged,
-    User as FirebaseUser,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    Auth
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { User } from "@/lib/types";
@@ -36,9 +36,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Only subscribe if auth is available (client-side)
+        if (!auth) {
+            setLoading(false);
+            return;
+        }
+
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
             if (firebaseUser) {
-                // Map Firebase user to our app's User type
                 const appUser: User = {
                     id: firebaseUser.uid,
                     name: firebaseUser.displayName || 'Anonymous User',
@@ -55,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const handleSignInAnonymously = async () => {
+        if (!auth) return;
         try {
             await signInAnonymously(auth);
         } catch (error) {
@@ -63,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleSignInWithGoogle = async () => {
+        if (!auth) return;
         try {
             const provider = new GoogleAuthProvider();
             await signInWithPopup(auth, provider);
@@ -72,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleSignOut = async () => {
+        if (!auth) return;
         try {
             await auth.signOut();
         } catch (error) {

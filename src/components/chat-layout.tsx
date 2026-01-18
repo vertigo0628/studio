@@ -54,6 +54,9 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   };
 
   useEffect(() => {
+    // Skip if db is not available (build time)
+    if (!db) return;
+
     // 1. Listen for Messages
     const messagesRef = collection(db, 'rooms', roomId, 'messages');
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
@@ -92,7 +95,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   }, [roomId]);
 
   const handleSendMessage = async (text: string) => {
-    if (!user) return;
+    if (!user || !db) return;
 
     try {
       const messagesRef = collection(db, 'rooms', roomId, 'messages');
@@ -113,7 +116,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   };
 
   const handleStartMedia = async (media: Media) => {
-    if (!user) return;
+    if (!user || !db) return;
 
     try {
       const roomRef = doc(db, 'rooms', roomId);
@@ -132,7 +135,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   };
 
   const handleStopMedia = async () => {
-    if (!user || !currentMedia) return;
+    if (!user || !currentMedia || !db) return;
 
     try {
       const roomRef = doc(db, 'rooms', roomId);

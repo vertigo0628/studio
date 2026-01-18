@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import {
     collection,
     doc,
@@ -57,7 +57,8 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
         setRemoteStream(null);
 
         // Delete call document
-        if (callDocRef.current) {
+        const db = getDb();
+        if (callDocRef.current && db) {
             try {
                 await deleteDoc(doc(db, 'rooms', roomId, 'calls', callDocRef.current));
             } catch (e) {
@@ -72,7 +73,8 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
 
     // Start a call
     const startCall = useCallback(async (type: 'audio' | 'video') => {
-        if (!currentUser) return;
+        const db = getDb();
+        if (!currentUser || !db) return;
 
         setCallType(type);
         setCallState('calling');
@@ -168,7 +170,8 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
 
     // Answer a call
     const answerCall = useCallback(async () => {
-        if (!incomingCall || !currentUser) return;
+        const db = getDb();
+        if (!incomingCall || !currentUser || !db) return;
 
         setCallState('connected');
         setCallType(incomingCall.type);
@@ -246,7 +249,8 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
 
     // End call
     const endCall = useCallback(async () => {
-        if (callDocRef.current) {
+        const db = getDb();
+        if (callDocRef.current && db) {
             try {
                 await updateDoc(doc(db, 'rooms', roomId, 'calls', callDocRef.current), {
                     status: 'ended',
@@ -260,7 +264,8 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
 
     // Decline incoming call
     const declineCall = useCallback(async () => {
-        if (incomingCall) {
+        const db = getDb();
+        if (incomingCall && db) {
             try {
                 await updateDoc(doc(db, 'rooms', roomId, 'calls', incomingCall.id), {
                     status: 'ended',
@@ -274,7 +279,8 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
 
     // Start screen sharing
     const startScreenShare = useCallback(async () => {
-        if (!currentUser) return;
+        const db = getDb();
+        if (!currentUser || !db) return;
 
         setCallType('screen');
         setCallState('calling');
@@ -377,7 +383,8 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
 
     // Listen for incoming calls
     useEffect(() => {
-        if (!currentUser || !roomId) return;
+        const db = getDb();
+        if (!currentUser || !roomId || !db) return;
 
         const callsRef = collection(db, 'rooms', roomId, 'calls');
 

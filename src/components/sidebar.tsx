@@ -3,10 +3,10 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Plus, MessageSquare, LogOut, LogIn, Users } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, LogIn, Users, Trash2 } from 'lucide-react';
 import { getDb } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
@@ -101,6 +101,27 @@ export default function Sidebar() {
         }
     };
 
+    const handleDeleteRoom = async (e: React.MouseEvent, roomId: string) => {
+        e.preventDefault(); // Prevent navigation
+        e.stopPropagation();
+
+        if (!confirm('Are you sure you want to delete this chat permanently?')) return;
+
+        const db = getDb();
+        if (!db) return;
+
+        try {
+            await deleteDoc(doc(db, 'rooms', roomId));
+            // If we are currently in this room, redirect to home
+            if (currentRoomId === roomId) {
+                router.push('/');
+            }
+        } catch (error) {
+            console.error("Error deleting room:", error);
+            alert("Failed to delete room");
+        }
+    };
+
     return (
         <div className="w-80 border-r h-full flex flex-col bg-muted/20 shrink-0">
             <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10">
@@ -130,7 +151,7 @@ export default function Sidebar() {
                         key={room.id}
                         href={`/c/${room.id}`}
                         className={cn(
-                            "flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors",
+                            "group flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors relative",
                             currentRoomId === room.id && "bg-accent"
                         )}
                     >
@@ -142,6 +163,19 @@ export default function Sidebar() {
                             <div className="font-semibold truncate">{room.name}</div>
                             <div className="text-xs text-muted-foreground truncate">{room.lastMessage}</div>
                         </div>
+                        {/* Only show delete if user is owner or if it's a public room (anyone can clean up for now, or maybe restrict?) 
+                            Let's allow deletion for now for better UX as requested. 
+                            Ideally check room.ownerId === user.id */}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => handleDeleteRoom(e, room.id)}
+                            title="Delete Chat"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            {/* Using LogOut or Trash2? User asked to 'remove'. Trash2 is clearer for delete. */}
+                        </Button>
                     </Link>
                 ))}
             </div>

@@ -2,16 +2,16 @@ export type User = {
   id: string;
   name: string;
   avatar: string;
-  email?: string;
+  email?: string | null;
   isAnonymous?: boolean;
-  phone?: string;
-  about?: string;
+  phone?: string | null;
+  about?: string | null;
   status?: 'online' | 'busy' | 'away' | 'offline';
   socials?: {
     instagram?: string;
     twitter?: string;
     linkedin?: string;
-  };
+  } | null;
 };
 
 export type Room = {

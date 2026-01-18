@@ -53,8 +53,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     id: firebaseUser.uid,
                     name: firebaseUser.displayName || 'Anonymous User',
                     avatar: firebaseUser.photoURL || PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)].imageUrl,
-                    email: firebaseUser.email || undefined,
+                    email: firebaseUser.email || null,
                     isAnonymous: firebaseUser.isAnonymous,
+                    phone: null,
+                    about: null,
+                    status: 'online',
+                    socials: null
                 };
 
                 // Sync/Fetch user from Firestore
@@ -74,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                 // but usually Firestore is truth for these extra fields.
                                 // We keep Auth ID/Email as source of truth for identity.
                                 id: firebaseUser.uid,
-                                email: firebaseUser.email || undefined,
+                                email: firebaseUser.email || null,
                             } as User;
                         }
 

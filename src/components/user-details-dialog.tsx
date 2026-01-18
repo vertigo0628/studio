@@ -131,56 +131,71 @@ END:VCARD`;
 
                     <div className="text-center space-y-1">
                         <h2 className="text-2xl font-bold">{targetUser.name}</h2>
-                        {targetUser.email && !targetUser.isAnonymous && (
-                            <p className="text-sm text-muted-foreground">{targetUser.email}</p>
-                        )}
+                        <p className="text-sm text-muted-foreground">{targetUser.email || (targetUser.isAnonymous ? "Anonymous User" : "No email provided")}</p>
                         {targetUser.status && (
-                            <p className={`text-sm font-medium capitalize ${getStatusColor(targetUser.status)}`}>
+                            <p className="text-sm font-medium capitalize flex items-center justify-center gap-2">
+                                <Circle className={`w-3 h-3 fill-current ${getStatusColor(targetUser.status)}`} />
                                 {targetUser.status}
                             </p>
                         )}
+                        <p className="text-xs text-muted-foreground font-mono mt-1">ID: {targetUser.id}</p>
                     </div>
 
                     <div className="w-full space-y-4">
-                        {targetUser.about && (
-                            <div className="bg-muted/30 p-3 rounded-lg text-sm">
-                                <div className="flex items-center gap-2 mb-1 text-muted-foreground">
-                                    <Info className="w-4 h-4" />
-                                    <span className="font-semibold text-xs uppercase">About</span>
-                                </div>
-                                <p>{targetUser.about}</p>
+                        <div className="bg-muted/30 p-3 rounded-lg text-sm">
+                            <div className="flex items-center gap-2 mb-1 text-muted-foreground">
+                                <Info className="w-4 h-4" />
+                                <span className="font-semibold text-xs uppercase">About</span>
                             </div>
-                        )}
+                            <p>{targetUser.about || "No bio available."}</p>
+                        </div>
 
                         <div className="flex justify-center gap-4">
-                            {targetUser.socials?.instagram && (
-                                <a href={`https://instagram.com/${targetUser.socials.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-muted rounded-full hover:bg-accent hover:text-pink-500 transition-colors">
-                                    <Instagram className="w-5 h-5" />
-                                </a>
-                            )}
-                            {targetUser.socials?.twitter && (
-                                <a href={`https://twitter.com/${targetUser.socials.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-muted rounded-full hover:bg-accent hover:text-blue-400 transition-colors">
-                                    <Twitter className="w-5 h-5" />
-                                </a>
-                            )}
-                            {targetUser.socials?.linkedin && (
-                                <a href={targetUser.socials.linkedin} target="_blank" rel="noopener noreferrer" className="p-2 bg-muted rounded-full hover:bg-accent hover:text-blue-700 transition-colors">
-                                    <Linkedin className="w-5 h-5" />
+                            <a
+                                href={targetUser.socials?.instagram ? `https://instagram.com/${targetUser.socials.instagram.replace('@', '')}` : '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`p-2 rounded-full transition-colors ${targetUser.socials?.instagram ? 'bg-muted hover:bg-accent hover:text-pink-500' : 'bg-muted/30 text-muted-foreground cursor-not-allowed'}`}
+                                aria-disabled={!targetUser.socials?.instagram}
+                            >
+                                <Instagram className="w-5 h-5" />
+                            </a>
+                            <a
+                                href={targetUser.socials?.twitter ? `https://twitter.com/${targetUser.socials.twitter.replace('@', '')}` : '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`p-2 rounded-full transition-colors ${targetUser.socials?.twitter ? 'bg-muted hover:bg-accent hover:text-blue-400' : 'bg-muted/30 text-muted-foreground cursor-not-allowed'}`}
+                                aria-disabled={!targetUser.socials?.twitter}
+                            >
+                                <Twitter className="w-5 h-5" />
+                            </a>
+                            <a
+                                href={targetUser.socials?.linkedin ? targetUser.socials.linkedin : '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`p-2 rounded-full transition-colors ${targetUser.socials?.linkedin ? 'bg-muted hover:bg-accent hover:text-blue-700' : 'bg-muted/30 text-muted-foreground cursor-not-allowed'}`}
+                                aria-disabled={!targetUser.socials?.linkedin}
+                            >
+                                <Linkedin className="w-5 h-5" />
+                            </a>
+                        </div>
+
+                        <div className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${targetUser.phone ? 'hover:bg-accent/50 cursor-pointer' : 'opacity-60 cursor-not-allowed bg-muted/20'}`}>
+                            <div className="flex items-center gap-3">
+                                <Phone className={`w-4 h-4 ${targetUser.phone ? 'text-green-600' : 'text-muted-foreground'}`} />
+                                <span className="text-sm font-medium">{targetUser.phone || "No phone number"}</span>
+                            </div>
+                            {targetUser.phone && (
+                                <a
+                                    href={`https://wa.me/${targetUser.phone.replace(/[^0-9]/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-green-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    Chat on WhatsApp
                                 </a>
                             )}
                         </div>
-
-                        {targetUser.phone && (
-                            <a href={`https://wa.me/${targetUser.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer group">
-                                <div className="flex items-center gap-3">
-                                    <Phone className="w-4 h-4 text-green-600" />
-                                    <span className="text-sm font-medium">{targetUser.phone}</span>
-                                </div>
-                                <div className="text-xs text-green-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Chat on WhatsApp
-                                </div>
-                            </a>
-                        )}
 
                         {currentUser && currentUser.id !== targetUser.id && (
                             <div className="flex gap-2">

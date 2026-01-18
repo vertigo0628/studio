@@ -2,6 +2,7 @@
 
 import { Phone, Video, ScreenShare, Music, Clapperboard, Trash2, LogOut } from 'lucide-react';
 import UserAvatar from '@/components/user-avatar';
+import { UserDetailsDialog } from './user-details-dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import type { User, Media } from '@/lib/types';
@@ -67,14 +68,18 @@ export default function ChatHeader({ partner, onStartMedia, onStartCall, onStart
         <>
             <div className="p-4 flex items-center justify-between border-b shrink-0">
                 <div className="flex items-center gap-4">
-                    <UserAvatar user={partner} />
-                    <div>
-                        <h2 className="text-lg font-bold font-headline">{partner.name}</h2>
-                        <p className="text-xs text-green-500 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                            Online
-                        </p>
-                    </div>
+                    <UserDetailsDialog user={partner}>
+                        <div className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity">
+                            <UserAvatar user={partner} />
+                            <div>
+                                <h2 className="text-lg font-bold font-headline">{partner.name}</h2>
+                                <p className="text-xs text-green-500 flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                    Online
+                                </p>
+                            </div>
+                        </div>
+                    </UserDetailsDialog>
                 </div>
                 <div className="flex items-center gap-1">
                     {room && (

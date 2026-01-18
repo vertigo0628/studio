@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { UserListDialog } from './user-list-dialog';
 import { UserProfileDialog } from './user-profile-dialog';
+import { ThemeToggle } from './theme-toggle';
 
 export default function Sidebar() {
     const { user, signInWithGoogle, signOut } = useAuth();
@@ -209,6 +210,7 @@ export default function Sidebar() {
                                 <LogOut className="w-4 h-4 text-muted-foreground" />
                             </Button>
                         )}
+                        <ThemeToggle />
 
                     </div>
                 ) : (

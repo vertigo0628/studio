@@ -9,9 +9,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Music, Video, Loader2 } from "lucide-react";
+import { Music, Video, Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { handleContentModeration } from "@/app/actions";
 import type { Media } from "@/lib/types";
 import { useTransition, useRef } from "react";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -55,34 +54,25 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia }:
           .from('media-share')
           .getPublicUrl(uploadData.path);
 
-        // 3. Moderate Content
-        const result = await handleContentModeration(mediaTypeRef.current, publicUrl);
-
         onOpenChange(false);
 
-        if (result.isFlagged) {
-          toast({
-            variant: "destructive",
-            title: "Content Moderation Warning",
-            description: `This content may be inappropriate. Reason: ${result.reason}`,
-            duration: 9000,
-          });
-        } else {
-          toast({
-            title: "Content Approved",
-            description: "Starting your broadcast now.",
-          });
-          const media: Media = {
-            type: mediaTypeRef.current,
-            title: file.name,
-            artist: "Shared via DuetCast",
-            thumbnail: mediaTypeRef.current === 'audio'
-              ? PlaceHolderImages.find(p => p.id === 'album-art-1')?.imageUrl || ''
-              : PlaceHolderImages.find(p => p.id === 'video-thumbnail-1')?.imageUrl || '',
-            url: publicUrl,
-          };
-          onStartMedia(media);
-        }
+        // NO MODERATION - Free Expression Mode 🔥
+        toast({
+          title: "Media Ready",
+          description: "Starting your broadcast now. Share freely!",
+        });
+
+        const media: Media = {
+          type: mediaTypeRef.current,
+          title: file.name,
+          artist: "Shared via DuetCast",
+          thumbnail: mediaTypeRef.current === 'audio'
+            ? PlaceHolderImages.find(p => p.id === 'album-art-1')?.imageUrl || ''
+            : PlaceHolderImages.find(p => p.id === 'video-thumbnail-1')?.imageUrl || '',
+          url: publicUrl,
+        };
+        onStartMedia(media);
+
       } catch (error: any) {
         console.error(error);
         toast({
@@ -102,9 +92,12 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia }:
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Share Media</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary" />
+            Share Media
+          </DialogTitle>
           <DialogDescription>
-            Choose what you want to share. Your content will be scanned for appropriateness before broadcasting.
+            Share any audio or video. Express yourself freely! 🎉
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -115,21 +108,25 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia }:
             accept="audio/*,video/*"
             onChange={handleFileChange}
           />
-          <Card className={cn("hover:bg-accent/50 cursor-pointer transition-colors", isPending && "pointer-events-none opacity-50")} onClick={() => onShareClick('audio')}>
+          <Card className={cn("hover:bg-accent/50 cursor-pointer transition-colors border-2 hover:border-primary", isPending && "pointer-events-none opacity-50")} onClick={() => onShareClick('audio')}>
             <CardContent className="p-6 flex items-center gap-4">
-              <Music className="w-8 h-8 text-primary" />
+              <div className="p-3 rounded-full bg-gradient-to-br from-purple-500 to-pink-500">
+                <Music className="w-6 h-6 text-white" />
+              </div>
               <div>
-                <h3 className="font-semibold">Share Local Audio</h3>
-                <p className="text-sm text-muted-foreground">Broadcast a song from your device.</p>
+                <h3 className="font-semibold">Share Audio</h3>
+                <p className="text-sm text-muted-foreground">Broadcast music, podcasts, or any audio.</p>
               </div>
             </CardContent>
           </Card>
-          <Card className={cn("hover:bg-accent/50 cursor-pointer transition-colors", isPending && "pointer-events-none opacity-50")} onClick={() => onShareClick('video')}>
+          <Card className={cn("hover:bg-accent/50 cursor-pointer transition-colors border-2 hover:border-primary", isPending && "pointer-events-none opacity-50")} onClick={() => onShareClick('video')}>
             <CardContent className="p-6 flex items-center gap-4">
-              <Video className="w-8 h-8 text-primary" />
+              <div className="p-3 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500">
+                <Video className="w-6 h-6 text-white" />
+              </div>
               <div>
-                <h3 className="font-semibold">Share Local Video</h3>
-                <p className="text-sm text-muted-foreground">Stream a video from your device.</p>
+                <h3 className="font-semibold">Share Video</h3>
+                <p className="text-sm text-muted-foreground">Stream movies, clips, or any video.</p>
               </div>
             </CardContent>
           </Card>
@@ -137,7 +134,7 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia }:
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {isPending ? 'Scanning...' : 'Cancel'}
+            {isPending ? 'Uploading...' : 'Cancel'}
           </Button>
         </DialogFooter>
       </DialogContent>

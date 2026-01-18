@@ -25,6 +25,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { useWebRTC } from '@/hooks/use-webrtc';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import type { Room, User } from '@/lib/types';
+import { TypingIndicator } from './typing-indicator';
+import { useTypingIndicator } from '@/hooks/use-typing-indicator';
 
 type ChatLayoutProps = {
   roomId: string;
@@ -50,12 +53,15 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
     startScreenShare,
   } = useWebRTC(roomId, user);
 
-  // Create a placeholder partner user for the header
-  const partnerUser = {
+  const [room, setRoom] = useState<Room | null>(null);
+  const [partnerUser, setPartnerUser] = useState<User>({
     id: 'partner',
     name: 'Chat Room',
     avatar: PlaceHolderImages.find(img => img.id === 'user-avatar-2')?.imageUrl || '',
-  };
+  });
+
+  // Typing indicator
+  const { typingUsers, setTyping } = useTypingIndicator(roomId);
 
   useEffect(() => {
     // Skip if db is not available (build time)
@@ -99,6 +105,41 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
       unsubscribeRoom();
     };
   }, [roomId]);
+
+  // Fetch room data and determine partner for DM
+  useEffect(() => {
+    const db = getDb();
+    if (!db || !user) return;
+
+    const roomRef = doc(db, 'rooms', roomId);
+    const unsubscribeRoomInfo = onSnapshot(roomRef, async (snapshot) => {
+      if (snapshot.exists()) {
+        const roomData = { id: snapshot.id, ...snapshot.data() } as Room;
+        setRoom(roomData);
+
+        // If it's a DM, find the other user
+        if (roomData.type === 'dm' && roomData.memberIds && roomData.memberIds.length > 0) {
+          const otherUserId = roomData.memberIds.find(id => id !== user.id);
+          if (otherUserId) {
+            const userDoc = await (await import('firebase/firestore')).getDoc(doc(db, 'users', otherUserId));
+            if (userDoc.exists()) {
+              const otherUser = { id: userDoc.id, ...userDoc.data() } as User;
+              setPartnerUser(otherUser);
+            }
+          }
+        } else {
+          // For group chats, use room name and avatar
+          setPartnerUser({
+            id: roomData.id,
+            name: roomData.name,
+            avatar: roomData.avatar || PlaceHolderImages.find(img => img.id === 'user-avatar-2')?.imageUrl || '',
+          });
+        }
+      }
+    });
+
+    return () => unsubscribeRoomInfo();
+  }, [roomId, user]);
 
   const handleSendMessage = async (text: string) => {
     const db = getDb();
@@ -256,7 +297,8 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
         />
         {currentMedia && <MediaPlayer media={currentMedia} onStop={handleStopMedia} />}
         <MessageList messages={messages} currentUser={user} onDeleteMessage={handleDeleteMessage} />
-        <ChatInput onSendMessage={handleSendMessage} onSendFile={handleSendFile} />
+        <TypingIndicator users={typingUsers} />
+        <ChatInput onSendMessage={handleSendMessage} onSendFile={handleSendFile} onTyping={setTyping} />
       </div>
     </>
   );

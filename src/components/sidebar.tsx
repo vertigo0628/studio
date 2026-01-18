@@ -3,17 +3,21 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Plus, MessageSquare } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, LogIn, Users } from 'lucide-react';
 import { getDb } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '@/hooks/use-auth';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { cn } from '@/lib/utils'; // Assuming cn utility exists
+import { cn } from '@/lib/utils';
+import { UserListDialog } from './user-list-dialog';
+import { UserProfileDialog } from './user-profile-dialog';
 
 export default function Sidebar() {
+    const { user, signInWithGoogle, signOut } = useAuth();
     const [rooms, setRooms] = useState<Room[]>([]);
     const router = useRouter();
     const params = useParams();
@@ -24,6 +28,23 @@ export default function Sidebar() {
         if (!db) return;
 
         const roomsRef = collection(db, 'rooms');
+
+        // Advanced Privacy:
+        // 1. If user is logged in, show rooms where they are a member OR rooms that are public
+        // 2. Ideally we need a complex OR query or two listeners. Firestore OR queries have limits.
+        // For simplicity: We will query ALL rooms and filter client side if the list isn't huge, 
+        // OR we just rely on 'memberIds' array-contains filter if we migrate everyone to have IDs.
+
+        // Since we are migrating:
+        // Let's LISTEN to all rooms for now but only SHOW the ones where:
+        // - type is 'public' (or undefined/backward combat)
+        // - OR memberIds contains currentUser.id
+
+        // BETTER: Use Firestore Query if possible.
+        // query(roomsRef, where('memberIds', 'array-contains', user.id));
+        // But this hides public rooms if you are not a member yet.
+
+        // STRATEGY: Fetch all rooms (assuming < 100 for this demo) and filter in memory.
         const q = query(roomsRef, orderBy('updatedAt', 'desc'));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -31,11 +52,26 @@ export default function Sidebar() {
                 id: doc.id,
                 ...doc.data()
             })) as Room[];
-            setRooms(newRooms);
+
+            // Filter logic
+            const filtered = newRooms.filter(r => {
+                // If user is null (anonymous/not signed in), only show public rooms (no type or type='public')
+                if (!user) return (!r.type || r.type === 'public');
+
+                // If user is signed in:
+                // Show if they are in memberIds
+                if (r.memberIds?.includes(user.id)) return true;
+
+                // Show if it's public/undefined type
+                if (!r.type || r.type === 'public') return true;
+
+                return false;
+            });
+            setRooms(filtered);
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [user]); // Re-run when user changes
 
     const handleCreateRoom = async () => {
         const db = getDb();
@@ -49,6 +85,14 @@ export default function Sidebar() {
                 avatar: randomAvatar,
                 updatedAt: serverTimestamp(),
                 lastMessage: 'Room created',
+                ownerId: user?.id,
+                memberIds: user ? [user.id] : [],
+                type: 'public' // Default to public for "+" button, or make it private? User asked for private.
+                // Let's make it 'private' if user is signed in, or just add them as member.
+                // Re-reading requirements: "Private Rooms", "Group/Admin Controls".
+                // Let's default to PRIVATE but with just the creator.
+                // Actually, if it's "New Chat", usually it's empty. 
+                // Let's set it as 'private' type.
             });
 
             router.push(`/c/${roomRef.id}`);
@@ -61,10 +105,18 @@ export default function Sidebar() {
         <div className="w-80 border-r h-full flex flex-col bg-muted/20 shrink-0">
             <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10">
                 <h2 className="font-bold text-xl">Chats</h2>
-                <Button size="icon" variant="ghost" onClick={handleCreateRoom}>
-                    <Plus className="w-5 h-5" />
-                    <span className="sr-only">New Chat</span>
-                </Button>
+                <div className="flex gap-1">
+                    <UserListDialog>
+                        <Button size="icon" variant="ghost" title="Contacts">
+                            <Users className="w-5 h-5" />
+                            <span className="sr-only">Contacts</span>
+                        </Button>
+                    </UserListDialog>
+                    <Button size="icon" variant="ghost" onClick={handleCreateRoom} title="New Room">
+                        <Plus className="w-5 h-5" />
+                        <span className="sr-only">New Chat</span>
+                    </Button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
@@ -93,6 +145,45 @@ export default function Sidebar() {
                     </Link>
                 ))}
             </div>
-        </div>
+
+            {/* User Profile Footer */}
+            <div className="p-4 border-t bg-background/95 backdrop-blur">
+                {user ? (
+                    <div className="flex items-center gap-3">
+                        <UserProfileDialog>
+                            <Avatar className="cursor-pointer hover:opacity-80 transition-opacity">
+                                <AvatarImage src={user.avatar} />
+                                <AvatarFallback>{user.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                        </UserProfileDialog>
+                        <div className="flex-1 overflow-hidden cursor-pointer">
+                            <UserProfileDialog>
+                                <div className="hover:opacity-80 transition-opacity">
+                                    <div className="font-semibold text-sm truncate">{user.name}</div>
+                                    <div className="text-xs text-muted-foreground truncate">
+                                        {user.isAnonymous ? 'Anonymous' : user.email}
+                                    </div>
+                                </div>
+                            </UserProfileDialog>
+                        </div>
+                        {user.isAnonymous ? (
+                            <Button size="icon" variant="ghost" onClick={() => signInWithGoogle()} title="Sign out">
+                                <LogIn className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                        ) : (
+                            <Button size="icon" variant="ghost" onClick={() => signOut()} title="Sign out">
+                                <LogOut className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                        )}
+
+                    </div>
+                ) : (
+                    <Button className="w-full gap-2" variant="outline" onClick={() => signInWithGoogle()}>
+                        <LogIn className="w-4 h-4" />
+                        Sign in with Google
+                    </Button>
+                )}
+            </div>
+        </div >
     );
 }

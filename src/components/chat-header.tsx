@@ -6,19 +6,53 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import type { User, Media } from '@/lib/types';
 import ModerationDialog from './moderation-dialog';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { Settings } from 'lucide-react';
+import { RoomSettingsDialog } from './room-settings-dialog';
+import { getDb } from '@/lib/firebase';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import type { Room } from '@/lib/types';
 
 type ChatHeaderProps = {
     partner: User;
     onStartMedia: (media: Media) => void;
     onStartCall: (type: 'audio' | 'video') => void;
     onStartScreenShare: () => void;
+    roomId: string; // Add roomId to props
 };
 
-export default function ChatHeader({ partner, onStartMedia, onStartCall, onStartScreenShare }: ChatHeaderProps) {
+export default function ChatHeader({ partner, onStartMedia, onStartCall, onStartScreenShare, roomId }: ChatHeaderProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [room, setRoom] = useState<Room | null>(null);
+    const [members, setMembers] = useState<User[]>([]);
     const { toast } = useToast();
+
+    // Fetch room and members for settings
+    useEffect(() => {
+        const db = getDb();
+        if (!db || !roomId) return;
+
+        const unsubscribe = onSnapshot(doc(db, 'rooms', roomId), async (snapshot) => {
+            if (snapshot.exists()) {
+                const roomData = { id: snapshot.id, ...snapshot.data() } as Room;
+                setRoom(roomData);
+
+                // Fetch full member profiles
+                if (roomData.memberIds && roomData.memberIds.length > 0) {
+                    const memberPromises = roomData.memberIds.map(async (uid) => {
+                        const userDoc = await getDoc(doc(db, 'users', uid));
+                        return userDoc.exists() ? { id: userDoc.id, ...userDoc.data() } as User : null;
+                    });
+                    const resolvedMembers = (await Promise.all(memberPromises)).filter(m => m !== null) as User[];
+                    setMembers(resolvedMembers);
+                }
+            }
+        });
+
+        return () => unsubscribe();
+    }, [roomId]);
 
     const handleCall = (type: 'audio' | 'video') => {
         toast({
@@ -42,6 +76,15 @@ export default function ChatHeader({ partner, onStartMedia, onStartCall, onStart
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
+                    {room && (
+                        <RoomSettingsDialog room={room} members={members}>
+                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
+                                <Settings className="w-5 h-5" />
+                                <span className="sr-only">Room Settings</span>
+                            </Button>
+                        </RoomSettingsDialog>
+                    )}
+                    <Separator orientation="vertical" className="h-6 mx-1" />
                     <Button variant="ghost" size="icon" onClick={() => setIsDialogOpen(true)} className="text-muted-foreground hover:text-primary">
                         <Music />
                         <span className="sr-only">Share Music</span>

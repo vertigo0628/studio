@@ -7,10 +7,12 @@ import {
     onAuthStateChanged,
     GoogleAuthProvider,
     signInWithPopup,
+    updateProfile,
     Auth
 } from "firebase/auth";
-import { getAuth } from "@/lib/firebase";
+import { getAuth, getDb } from "@/lib/firebase";
 import { User } from "@/lib/types";
+import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 type AuthContextType = {
@@ -19,6 +21,7 @@ type AuthContextType = {
     signInAnonymously: () => Promise<void>;
     signInWithGoogle: () => Promise<void>;
     signOut: () => Promise<void>;
+    updateUserProfile: (name: string, avatar?: string, phone?: string, about?: string, status?: User['status'], socials?: User['socials']) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,6 +30,7 @@ const AuthContext = createContext<AuthContextType>({
     signInAnonymously: async () => { },
     signInWithGoogle: async () => { },
     signOut: async () => { },
+    updateUserProfile: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -48,8 +52,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const appUser: User = {
                     id: firebaseUser.uid,
                     name: firebaseUser.displayName || 'Anonymous User',
-                    avatar: firebaseUser.photoURL || PlaceHolderImages[0].imageUrl,
+                    avatar: firebaseUser.photoURL || PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)].imageUrl,
+                    email: firebaseUser.email || undefined,
+                    isAnonymous: firebaseUser.isAnonymous,
                 };
+
+                // Sync user to Firestore 'users' collection
+                const db = getDb();
+                if (db) {
+                    try {
+                        const userRef = doc(db, 'users', appUser.id);
+                        // Only update if changed or new. For now, just set merge: true
+                        await setDoc(userRef, {
+                            ...appUser,
+                            lastSeen: serverTimestamp()
+                        }, { merge: true });
+                    } catch (error) {
+                        console.error("Error syncing user to Firestore:", error);
+                    }
+                }
+
                 setUser(appUser);
                 setLoading(false);
             } else {
@@ -99,13 +121,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const handleUpdateUserProfile = async (name: string, avatar?: string, phone?: string, about?: string, status?: User['status'], socials?: User['socials']) => {
+        const auth = getAuth();
+        const db = getDb();
+        if (!auth || !auth.currentUser || !user || !db) return;
+
+        try {
+            // 1. Update Firebase Auth Profile (Only supports standard fields)
+            await updateProfile(auth.currentUser, {
+                displayName: name,
+                photoURL: avatar || user.avatar
+            });
+
+            // 2. Update Firestore User Document (Supports custom fields)
+            const userRef = doc(db, 'users', user.id);
+            const updates = {
+                name: name,
+                avatar: avatar || user.avatar,
+                phone: phone || user.phone || null,
+                about: about || user.about || null,
+                status: status || user.status || 'online',
+                socials: socials || user.socials || null,
+                updatedAt: serverTimestamp()
+            };
+
+            await setDoc(userRef, updates, { merge: true });
+
+            // 3. Update Local State
+            setUser(prev => prev ? {
+                ...prev,
+                name,
+                avatar: avatar || prev.avatar,
+                phone: phone || prev.phone,
+                about: about || prev.about,
+                status: status || prev.status,
+                socials: socials || prev.socials
+            } : null);
+
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            throw error;
+        }
+    };
+
     return (
         <AuthContext.Provider value={{
             user,
             loading,
             signInAnonymously: handleSignInAnonymously,
             signInWithGoogle: handleSignInWithGoogle,
-            signOut: handleSignOut
+            signOut: handleSignOut,
+            updateUserProfile: handleUpdateUserProfile
         }}>
             {children}
         </AuthContext.Provider>

@@ -7,25 +7,25 @@ import { ScrollArea } from './ui/scroll-area';
 
 type MessageListProps = {
   messages: MessageType[];
-  currentUser: User;
+  currentUser: User | null;
 };
 
 export default function MessageList({ messages, currentUser }: MessageListProps) {
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
 
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   return (
     <ScrollArea className="flex-1">
       <div className="p-4 space-y-4">
         {messages.map((msg) => (
-          <Message key={msg.id} message={msg} isCurrentUser={msg.user.id === currentUser.id} />
+          <Message key={msg.id} message={msg} isCurrentUser={currentUser ? msg.user.id === currentUser.id : false} />
         ))}
         <div ref={messagesEndRef} />
       </div>

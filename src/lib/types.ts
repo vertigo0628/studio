@@ -2,6 +2,16 @@ export type User = {
   id: string;
   name: string;
   avatar: string;
+  email?: string;
+  isAnonymous?: boolean;
+  phone?: string;
+  about?: string;
+  status?: 'online' | 'busy' | 'away' | 'offline';
+  socials?: {
+    instagram?: string;
+    twitter?: string;
+    linkedin?: string;
+  };
 };
 
 export type Room = {
@@ -9,7 +19,10 @@ export type Room = {
   name: string;
   avatar: string;
   lastMessage?: string;
-  updatedAt?: any; // Firestore timestamp
+  updatedAt?: any;
+  ownerId?: string;
+  memberIds?: string[];
+  type?: 'public' | 'private' | 'dm';
 };
 
 

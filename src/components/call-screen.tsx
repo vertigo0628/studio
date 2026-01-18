@@ -10,7 +10,7 @@ import { useState } from 'react';
 
 type CallScreenProps = {
     callState: 'calling' | 'ringing' | 'connected';
-    callType: 'audio' | 'video';
+    callType: 'audio' | 'video' | 'screen';
     localStream: MediaStream | null;
     remoteStream: MediaStream | null;
     incomingCall: Call | null;

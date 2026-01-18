@@ -183,6 +183,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
           onStartMedia={handleStartMedia}
           onStartCall={handleStartCall}
           onStartScreenShare={startScreenShare}
+          roomId={roomId}
         />
         {currentMedia && <MediaPlayer media={currentMedia} onStop={handleStopMedia} />}
         <MessageList messages={messages} currentUser={user} />

@@ -10,11 +10,13 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 type ChatHeaderProps = {
-  partner: User;
-  onStartMedia: (media: Media) => void;
+    partner: User;
+    onStartMedia: (media: Media) => void;
+    onStartCall: (type: 'audio' | 'video') => void;
+    onStartScreenShare: () => void;
 };
 
-export default function ChatHeader({ partner, onStartMedia }: ChatHeaderProps) {
+export default function ChatHeader({ partner, onStartMedia, onStartCall, onStartScreenShare }: ChatHeaderProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const { toast } = useToast();
 
@@ -23,6 +25,7 @@ export default function ChatHeader({ partner, onStartMedia }: ChatHeaderProps) {
             title: `Starting ${type} call...`,
             description: `Calling ${partner.name}.`,
         });
+        onStartCall(type);
     };
 
     return (
@@ -47,7 +50,7 @@ export default function ChatHeader({ partner, onStartMedia }: ChatHeaderProps) {
                         <Clapperboard />
                         <span className="sr-only">Share Video</span>
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => toast({ title: "Starting screen share..."})} className="text-muted-foreground hover:text-primary">
+                    <Button variant="ghost" size="icon" onClick={onStartScreenShare} className="text-muted-foreground hover:text-primary">
                         <ScreenShare />
                         <span className="sr-only">Share Screen</span>
                     </Button>

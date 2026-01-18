@@ -13,10 +13,11 @@ import { Music, Video, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { handleContentModeration } from "@/app/actions";
 import type { Media } from "@/lib/types";
-import { useTransition } from "react";
+import { useTransition, useRef } from "react";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Card, CardContent } from "./ui/card";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 type ModerationDialogProps = {
   isOpen: boolean;
@@ -27,42 +28,74 @@ type ModerationDialogProps = {
 export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia }: ModerationDialogProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaTypeRef = useRef<"audio" | "video">("audio");
 
-  const onShare = (contentType: "audio" | "video") => {
+  const onShareClick = (type: "audio" | "video") => {
+    mediaTypeRef.current = type;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     startTransition(async () => {
-      const result = await handleContentModeration(contentType);
+      try {
+        // 1. Upload to Supabase
+        const filename = `${Date.now()}-${file.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('media-share')
+          .upload(filename, file);
 
-      onOpenChange(false);
+        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
-      if (result.isFlagged) {
+        // 2. Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('media-share')
+          .getPublicUrl(uploadData.path);
+
+        // 3. Moderate Content
+        const result = await handleContentModeration(mediaTypeRef.current, publicUrl);
+
+        onOpenChange(false);
+
+        if (result.isFlagged) {
+          toast({
+            variant: "destructive",
+            title: "Content Moderation Warning",
+            description: `This content may be inappropriate. Reason: ${result.reason}`,
+            duration: 9000,
+          });
+        } else {
+          toast({
+            title: "Content Approved",
+            description: "Starting your broadcast now.",
+          });
+          const media: Media = {
+            type: mediaTypeRef.current,
+            title: file.name,
+            artist: "Shared via DuetCast",
+            thumbnail: mediaTypeRef.current === 'audio'
+              ? PlaceHolderImages.find(p => p.id === 'album-art-1')?.imageUrl || ''
+              : PlaceHolderImages.find(p => p.id === 'video-thumbnail-1')?.imageUrl || '',
+            url: publicUrl,
+          };
+          onStartMedia(media);
+        }
+      } catch (error: any) {
+        console.error(error);
         toast({
           variant: "destructive",
-          title: "Content Moderation Warning",
-          description: `This content may be inappropriate. Reason: ${result.reason}`,
-          duration: 9000,
+          title: "Error",
+          description: error.message || "Something went wrong.",
         });
-      } else {
-        toast({
-          title: "Content Approved",
-          description: "Starting your broadcast now.",
-        });
-        const media: Media =
-          contentType === "audio"
-            ? {
-                type: "audio",
-                title: "Dreaming On",
-                artist: "NEFFEX",
-                thumbnail: PlaceHolderImages.find(p => p.id === 'album-art-1')?.imageUrl || '',
-              }
-            : {
-                type: "video",
-                title: "The Great Adventure",
-                artist: "A-Film",
-                thumbnail: PlaceHolderImages.find(p => p.id === 'video-thumbnail-1')?.imageUrl || '',
-              };
-        onStartMedia(media);
+        onOpenChange(false);
       }
     });
+
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -75,24 +108,31 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia }:
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-            <Card className={cn("hover:bg-accent/50 cursor-pointer transition-colors", isPending && "pointer-events-none opacity-50")} onClick={() => onShare('audio')}>
-                <CardContent className="p-6 flex items-center gap-4">
-                    <Music className="w-8 h-8 text-primary" />
-                    <div>
-                        <h3 className="font-semibold">Share Local Audio</h3>
-                        <p className="text-sm text-muted-foreground">Broadcast a song from your device.</p>
-                    </div>
-                </CardContent>
-            </Card>
-             <Card className={cn("hover:bg-accent/50 cursor-pointer transition-colors", isPending && "pointer-events-none opacity-50")} onClick={() => onShare('video')}>
-                <CardContent className="p-6 flex items-center gap-4">
-                    <Video className="w-8 h-8 text-primary" />
-                    <div>
-                        <h3 className="font-semibold">Share Local Video</h3>
-                        <p className="text-sm text-muted-foreground">Stream a video from your device.</p>
-                    </div>
-                </CardContent>
-            </Card>
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept="audio/*,video/*"
+            onChange={handleFileChange}
+          />
+          <Card className={cn("hover:bg-accent/50 cursor-pointer transition-colors", isPending && "pointer-events-none opacity-50")} onClick={() => onShareClick('audio')}>
+            <CardContent className="p-6 flex items-center gap-4">
+              <Music className="w-8 h-8 text-primary" />
+              <div>
+                <h3 className="font-semibold">Share Local Audio</h3>
+                <p className="text-sm text-muted-foreground">Broadcast a song from your device.</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className={cn("hover:bg-accent/50 cursor-pointer transition-colors", isPending && "pointer-events-none opacity-50")} onClick={() => onShareClick('video')}>
+            <CardContent className="p-6 flex items-center gap-4">
+              <Video className="w-8 h-8 text-primary" />
+              <div>
+                <h3 className="font-semibold">Share Local Video</h3>
+                <p className="text-sm text-muted-foreground">Stream a video from your device.</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>

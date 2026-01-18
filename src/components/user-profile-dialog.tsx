@@ -73,7 +73,8 @@ export function UserProfileDialog({ children }: { children: React.ReactNode }) {
             setIsOpen(false);
         } catch (error) {
             console.error("Error saving profile:", error);
-            alert("Failed to update profile.");
+            console.error("Error saving profile:", error);
+            alert(`Failed to update profile: ${(error as Error).message}`);
         } finally {
             setIsSaving(false);
         }

@@ -8,9 +8,10 @@ import { ScrollArea } from './ui/scroll-area';
 type MessageListProps = {
   messages: MessageType[];
   currentUser: User | null;
+  onDeleteMessage?: (message: MessageType) => void;
 };
 
-export default function MessageList({ messages, currentUser }: MessageListProps) {
+export default function MessageList({ messages, currentUser, onDeleteMessage }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -25,7 +26,12 @@ export default function MessageList({ messages, currentUser }: MessageListProps)
     <ScrollArea className="flex-1">
       <div className="p-4 space-y-4">
         {messages.map((msg) => (
-          <Message key={msg.id} message={msg} isCurrentUser={currentUser ? msg.user.id === currentUser.id : false} />
+          <Message
+            key={msg.id}
+            message={msg}
+            isCurrentUser={currentUser ? msg.user.id === currentUser.id : false}
+            onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>

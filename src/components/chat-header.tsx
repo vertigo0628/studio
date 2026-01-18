@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, Video, ScreenShare, Music, Clapperboard } from 'lucide-react';
+import { Phone, Video, ScreenShare, Music, Clapperboard, Trash2, LogOut } from 'lucide-react';
 import UserAvatar from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -20,9 +20,10 @@ type ChatHeaderProps = {
     onStartCall: (type: 'audio' | 'video') => void;
     onStartScreenShare: () => void;
     roomId: string; // Add roomId to props
+    onDeleteChat?: () => void;
 };
 
-export default function ChatHeader({ partner, onStartMedia, onStartCall, onStartScreenShare, roomId }: ChatHeaderProps) {
+export default function ChatHeader({ partner, onStartMedia, onStartCall, onStartScreenShare, roomId, onDeleteChat }: ChatHeaderProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [room, setRoom] = useState<Room | null>(null);
@@ -83,6 +84,16 @@ export default function ChatHeader({ partner, onStartMedia, onStartCall, onStart
                                 <span className="sr-only">Room Settings</span>
                             </Button>
                         </RoomSettingsDialog>
+                    )}
+                    {onDeleteChat && (
+                        <Button variant="ghost" size="icon" onClick={() => {
+                            if (confirm('Are you sure you want to delete/leave this chat?')) {
+                                onDeleteChat();
+                            }
+                        }} className="text-muted-foreground hover:text-destructive">
+                            <Trash2 className="w-5 h-5" />
+                            <span className="sr-only">Delete Chat</span>
+                        </Button>
                     )}
                     <Separator orientation="vertical" className="h-6 mx-1" />
                     <Button variant="ghost" size="icon" onClick={() => setIsDialogOpen(true)} className="text-muted-foreground hover:text-primary">

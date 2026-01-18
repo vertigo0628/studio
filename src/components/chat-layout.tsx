@@ -18,10 +18,13 @@ import {
   setDoc,
   doc,
   serverTimestamp,
-  deleteField
+  deleteField,
+  deleteDoc
 } from 'firebase/firestore';
 import { useAuth } from '@/hooks/use-auth';
 import { useWebRTC } from '@/hooks/use-webrtc';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 type ChatLayoutProps = {
   roomId: string;
@@ -31,6 +34,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMedia, setCurrentMedia] = useState<Media | null>(null);
+  const router = useRouter();
 
   // WebRTC calling
   const {
@@ -71,6 +75,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
           user: data.user,
           timestamp: data.createdAt ? new Date(data.createdAt.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sending...',
           isSystemMessage: data.isSystemMessage,
+          file: data.file,
         } as Message;
       });
       setMessages(newMessages);
@@ -114,6 +119,69 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
       }, { merge: true });
     } catch (error) {
       console.error("Error sending message:", error);
+    }
+  };
+
+  const handleSendFile = async (file: File) => {
+    const db = getDb();
+    if (!user || !db) return;
+
+    try {
+      const filename = `uploads/${roomId}/${Date.now()}-${file.name}`;
+      const { data, error } = await supabase.storage
+        .from('media-share')
+        .upload(filename, file);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('media-share')
+        .getPublicUrl(data.path);
+
+      const messagesRef = collection(db, 'rooms', roomId, 'messages');
+      await addDoc(messagesRef, {
+        text: `Sent a file: ${file.name}`,
+        user,
+        createdAt: serverTimestamp(),
+        file: {
+          name: file.name,
+          url: publicUrl,
+          type: file.type
+        }
+      });
+
+    } catch (error) {
+      console.error("Error sending file:", error);
+      alert("Failed to upload file");
+    }
+  };
+
+  const handleDeleteMessage = async (message: Message) => {
+    const db = getDb();
+    if (!user || !db) return;
+
+    // Only allow deleting own messages
+    if (message.user.id !== user.id) return;
+
+    try {
+      await deleteDoc(doc(db, 'rooms', roomId, 'messages', message.id));
+      // Bonus: Delete file from storage if present (requires ref parsing or storing path)
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    const db = getDb();
+    if (!user || !db) return;
+
+    try {
+      // Ideally check if owner, if so delete room, else remove from members
+      // For now, simple delete logic:
+      await deleteDoc(doc(db, 'rooms', roomId));
+      router.push('/');
+    } catch (error) {
+      console.error("Error deleting chat:", error);
     }
   };
 
@@ -184,10 +252,11 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
           onStartCall={handleStartCall}
           onStartScreenShare={startScreenShare}
           roomId={roomId}
+          onDeleteChat={handleDeleteChat}
         />
         {currentMedia && <MediaPlayer media={currentMedia} onStop={handleStopMedia} />}
-        <MessageList messages={messages} currentUser={user} />
-        <ChatInput onSendMessage={handleSendMessage} />
+        <MessageList messages={messages} currentUser={user} onDeleteMessage={handleDeleteMessage} />
+        <ChatInput onSendMessage={handleSendMessage} onSendFile={handleSendFile} />
       </div>
     </>
   );

@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Paperclip, Send } from 'lucide-react';
 
 type ChatInputProps = {
   onSendMessage: (text: string) => void;
+  onSendFile: (file: File) => void;
 };
 
-export default function ChatInput({ onSendMessage }: ChatInputProps) {
+export default function ChatInput({ onSendMessage, onSendFile }: ChatInputProps) {
   const [text, setText] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,10 +22,29 @@ export default function ChatInput({ onSendMessage }: ChatInputProps) {
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onSendFile(file);
+    }
+  };
+
   return (
     <div className="p-4 border-t bg-background/50 shrink-0">
       <form onSubmit={handleSubmit} className="flex items-start gap-2">
-        <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-accent-foreground shrink-0">
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          type="button"
+          className="text-muted-foreground hover:text-accent-foreground shrink-0"
+          onClick={() => fileInputRef.current?.click()}
+        >
           <Paperclip />
           <span className="sr-only">Attach file</span>
         </Button>
@@ -35,8 +56,8 @@ export default function ChatInput({ onSendMessage }: ChatInputProps) {
           rows={1}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
+              e.preventDefault();
+              handleSubmit(e);
             }
           }}
         />

@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                const appUser: User = {
+                let appUser: User = {
                     id: firebaseUser.uid,
                     name: firebaseUser.displayName || 'Anonymous User',
                     avatar: firebaseUser.photoURL || PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)].imageUrl,
@@ -57,16 +57,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     isAnonymous: firebaseUser.isAnonymous,
                 };
 
-                // Sync user to Firestore 'users' collection
+                // Sync/Fetch user from Firestore
                 const db = getDb();
                 if (db) {
                     try {
                         const userRef = doc(db, 'users', appUser.id);
-                        // Only update if changed or new. For now, just set merge: true
+                        const userSnap = await getDoc(userRef);
+
+                        if (userSnap.exists()) {
+                            // Merge Firestore data into appUser using a type assertion to key access safely or just spread
+                            const data = userSnap.data();
+                            appUser = {
+                                ...appUser,
+                                ...data,
+                                // Ensure critical Auth fields aren't overwritten by stale Firestore data if needed, 
+                                // but usually Firestore is truth for these extra fields.
+                                // We keep Auth ID/Email as source of truth for identity.
+                                id: firebaseUser.uid,
+                                email: firebaseUser.email || undefined,
+                            } as User;
+                        }
+
+                        // Update last seen
                         await setDoc(userRef, {
                             ...appUser,
                             lastSeen: serverTimestamp()
                         }, { merge: true });
+
                     } catch (error) {
                         console.error("Error syncing user to Firestore:", error);
                     }

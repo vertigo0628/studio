@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 const appUser: User = {
                     id: firebaseUser.uid,
@@ -51,10 +51,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     avatar: firebaseUser.photoURL || PlaceHolderImages[0].imageUrl,
                 };
                 setUser(appUser);
+                setLoading(false);
             } else {
-                setUser(null);
+                // Auto sign-in anonymously if no user
+                try {
+                    await signInAnonymously(auth);
+                    // onAuthStateChanged will be triggered again with the new user
+                } catch (error) {
+                    console.error("Error auto signing in:", error);
+                    setUser(null);
+                    setLoading(false);
+                }
             }
-            setLoading(false);
         });
 
         return () => unsubscribe();

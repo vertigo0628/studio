@@ -9,7 +9,7 @@ import {
     signInWithPopup,
     Auth
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { getAuth } from "@/lib/firebase";
 import { User } from "@/lib/types";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 
@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Only subscribe if auth is available (client-side)
+        const auth = getAuth();
         if (!auth) {
             setLoading(false);
             return;
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const handleSignInAnonymously = async () => {
+        const auth = getAuth();
         if (!auth) return;
         try {
             await signInAnonymously(auth);
@@ -69,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleSignInWithGoogle = async () => {
+        const auth = getAuth();
         if (!auth) return;
         try {
             const provider = new GoogleAuthProvider();
@@ -79,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleSignOut = async () => {
+        const auth = getAuth();
         if (!auth) return;
         try {
             await auth.signOut();

@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Plus, MessageSquare } from 'lucide-react';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { Room } from '@/lib/types';
 import Link from 'next/link';
@@ -20,6 +20,7 @@ export default function Sidebar() {
     const currentRoomId = params?.roomId as string;
 
     useEffect(() => {
+        const db = getDb();
         if (!db) return;
 
         const roomsRef = collection(db, 'rooms');
@@ -37,6 +38,7 @@ export default function Sidebar() {
     }, []);
 
     const handleCreateRoom = async () => {
+        const db = getDb();
         if (!db) return;
         try {
             // Pick a random avatar for the room

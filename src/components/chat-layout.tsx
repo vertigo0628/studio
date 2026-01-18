@@ -8,7 +8,7 @@ import MediaPlayer from '@/components/media-player';
 import CallScreen from '@/components/call-screen';
 import type { Message, Media } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import {
   collection,
   query,
@@ -55,6 +55,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
 
   useEffect(() => {
     // Skip if db is not available (build time)
+    const db = getDb();
     if (!db) return;
 
     // 1. Listen for Messages
@@ -95,6 +96,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   }, [roomId]);
 
   const handleSendMessage = async (text: string) => {
+    const db = getDb();
     if (!user || !db) return;
 
     try {
@@ -116,6 +118,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   };
 
   const handleStartMedia = async (media: Media) => {
+    const db = getDb();
     if (!user || !db) return;
 
     try {
@@ -135,6 +138,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   };
 
   const handleStopMedia = async () => {
+    const db = getDb();
     if (!user || !currentMedia || !db) return;
 
     try {

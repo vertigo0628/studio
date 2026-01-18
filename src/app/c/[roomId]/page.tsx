@@ -1,19 +1,22 @@
+"use client";
 
 import ChatLayout from '@/components/chat-layout';
 import Sidebar from '@/components/sidebar';
+import { useParams } from 'next/navigation';
 
-type Props = {
-    params: Promise<{ roomId: string }>;
-};
+export default function ChatPage() {
+    const params = useParams();
+    const roomId = params?.roomId as string;
 
-export default async function ChatPage({ params }: Props) {
-    const resolvedParams = await params;
+    if (!roomId) {
+        return <div>Loading...</div>;
+    }
 
     return (
         <main className="h-screen w-screen flex overflow-hidden">
             <Sidebar />
             <div className="flex-1 overflow-hidden">
-                <ChatLayout roomId={resolvedParams.roomId} />
+                <ChatLayout roomId={roomId} />
             </div>
         </main>
     );

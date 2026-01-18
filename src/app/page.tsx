@@ -1,3 +1,5 @@
+"use client";
+
 import Sidebar from '@/components/sidebar';
 import { MessageSquareDashed } from 'lucide-react';
 

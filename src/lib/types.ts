@@ -45,6 +45,11 @@ export type Media = {
   artist: string;
   thumbnail: string;
   url: string;
+  // New fields for advanced streaming
+  sourceType?: 'upload' | 'url' | 'p2p'; // How the media is being shared
+  tempFile?: boolean; // If true, delete from storage when session ends
+  isEmbed?: boolean; // If true, use iframe (YouTube/Vimeo)
+  storagePath?: string; // Path in Supabase storage for cleanup
 };
 
 export type Call = {

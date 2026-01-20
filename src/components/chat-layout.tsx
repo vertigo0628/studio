@@ -251,6 +251,23 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
     if (!user || !currentMedia || !db) return;
 
     try {
+      // Auto-delete temp files from Supabase storage
+      if (currentMedia.tempFile && currentMedia.storagePath) {
+        try {
+          const { error: deleteError } = await supabase.storage
+            .from('media-share')
+            .remove([currentMedia.storagePath]);
+
+          if (deleteError) {
+            console.error('Error deleting temp file:', deleteError);
+          } else {
+            console.log('Temp file deleted:', currentMedia.storagePath);
+          }
+        } catch (e) {
+          console.error('Failed to delete temp file:', e);
+        }
+      }
+
       const roomRef = doc(db, 'rooms', roomId);
       await setDoc(roomRef, { currentMedia: deleteField() }, { merge: true });
 

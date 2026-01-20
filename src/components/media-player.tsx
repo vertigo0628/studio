@@ -5,7 +5,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Pause, Play, X, Music, Clapperboard, Maximize2, PictureInPicture2, Link2, Radio, Volume2, VolumeX, Crown, Users, Loader2 } from 'lucide-react';
 import type { Media } from '@/lib/types';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useMediaSync } from '@/hooks/use-media-sync';
 
@@ -21,11 +21,11 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     const [isPlaying, setIsPlaying] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isPiP, setIsPiP] = useState(false);
-    const [isMuted, setIsMuted] = useState(false);
+    const [isMuted, setIsMuted] = useState(true); // Start muted to allow autoplay
     const [videoError, setVideoError] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
-    const [audioEnabled, setAudioEnabled] = useState(false);
+    const [showUnmutePrompt, setShowUnmutePrompt] = useState(true);
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -61,6 +61,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
         }
     }, [syncState?.isPlaying]);
 
+    // Handle play state changes
     useEffect(() => {
         if (media.isEmbed) return;
 
@@ -68,7 +69,9 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
         if (!mediaElement) return;
 
         if (isPlaying) {
-            mediaElement.play().catch(console.error);
+            mediaElement.play().catch(e => {
+                console.log('Autoplay blocked:', e);
+            });
         } else {
             mediaElement.pause();
         }
@@ -78,26 +81,24 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
         setVideoError(false);
     }, [media.url]);
 
-    // Enable audio on user interaction (handles autoplay policy)
-    const enableAudio = () => {
+    // Unmute handler - called on user interaction
+    const handleUnmute = useCallback(() => {
         const mediaElement = videoRef.current || audioRef.current;
         if (mediaElement) {
             mediaElement.muted = false;
-            mediaElement.play().then(() => {
-                setAudioEnabled(true);
-            }).catch(e => {
-                console.log('Playback failed, trying muted:', e);
-                // If it fails, try muted first then unmute
-                mediaElement.muted = true;
-                mediaElement.play().then(() => {
-                    mediaElement.muted = false;
-                    setAudioEnabled(true);
-                }).catch(console.error);
-            });
-        } else {
-            setAudioEnabled(true);
+            setIsMuted(false);
+            setShowUnmutePrompt(false);
+            // Also try to play in case it was paused
+            mediaElement.play().catch(console.error);
         }
-    };
+    }, []);
+
+    // Handle any click on the player to unmute
+    const handlePlayerClick = useCallback(() => {
+        if (isMuted) {
+            handleUnmute();
+        }
+    }, [isMuted, handleUnmute]);
 
     // Time update handler
     const handleTimeUpdate = () => {
@@ -116,7 +117,12 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     };
 
     const handlePlayPause = async () => {
-        if (!isHost) return; // Only host can control
+        if (!isHost) return;
+
+        // Always unmute on play/pause interaction
+        if (isMuted) {
+            handleUnmute();
+        }
 
         if (isPlaying) {
             await broadcastPause();
@@ -174,9 +180,12 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     };
 
     const toggleMute = () => {
-        if (videoRef.current) videoRef.current.muted = !videoRef.current.muted;
-        if (audioRef.current) audioRef.current.muted = !audioRef.current.muted;
-        setIsMuted(!isMuted);
+        const mediaElement = videoRef.current || audioRef.current;
+        if (mediaElement) {
+            mediaElement.muted = !mediaElement.muted;
+            setIsMuted(!isMuted);
+            setShowUnmutePrompt(false);
+        }
     };
 
     const getSourceIcon = () => {
@@ -188,6 +197,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     };
 
     const formatTime = (seconds: number) => {
+        if (!isFinite(seconds)) return '0:00';
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -227,7 +237,15 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     // Expanded view for regular video
     if (isExpanded && media.type === 'video' && !media.isEmbed) {
         return (
-            <div className="fixed inset-0 z-50 bg-black flex flex-col">
+            <div className="fixed inset-0 z-50 bg-black flex flex-col" onClick={handlePlayerClick}>
+                {/* Unmute prompt */}
+                {isMuted && showUnmutePrompt && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-primary text-primary-foreground px-4 py-2 rounded-full flex items-center gap-2 animate-bounce">
+                        <Volume2 className="w-4 h-4" />
+                        <span>Click anywhere to unmute</span>
+                    </div>
+                )}
+
                 <div className="absolute top-4 right-4 z-10 flex gap-2">
                     {isSyncing && (
                         <div className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm flex items-center gap-2">
@@ -248,6 +266,8 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                         src={media.url}
                         className="max-w-full max-h-full rounded-lg"
                         autoPlay
+                        muted={isMuted}
+                        playsInline
                         onTimeUpdate={handleTimeUpdate}
                         onLoadedMetadata={handleLoadedMetadata}
                         onError={() => setVideoError(true)}
@@ -256,7 +276,6 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                 {/* Sync controls */}
                 <div className="p-4 bg-black/80 text-white">
                     <div className="max-w-4xl mx-auto space-y-2">
-                        {/* Progress bar */}
                         <div className="flex items-center gap-3">
                             <span className="text-sm font-mono w-12">{formatTime(currentTime)}</span>
                             <input
@@ -273,7 +292,6 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                             />
                             <span className="text-sm font-mono w-12">{formatTime(duration)}</span>
                         </div>
-                        {/* Controls + info */}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <Button
@@ -285,9 +303,16 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                                 >
                                     {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
                                 </Button>
-                                <Button variant="ghost" size="icon" onClick={toggleMute}>
+                                <Button
+                                    variant={isMuted ? "destructive" : "ghost"}
+                                    size="icon"
+                                    onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+                                >
                                     {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                                 </Button>
+                                {isMuted && (
+                                    <span className="text-xs text-red-400 animate-pulse">Audio muted - click to unmute</span>
+                                )}
                             </div>
                             <div className="text-center">
                                 <h3 className="font-bold">{media.title}</h3>
@@ -315,21 +340,20 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
 
     // Compact player bar
     return (
-        <div className="p-2 border-b shrink-0">
-            {/* Click to enable audio overlay */}
-            {!audioEnabled && !media.isEmbed && (
-                <div
-                    className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center cursor-pointer"
-                    onClick={enableAudio}
-                >
-                    <div className="bg-card p-6 rounded-xl text-center shadow-2xl border">
-                        <Volume2 className="w-12 h-12 mx-auto mb-3 text-primary animate-pulse" />
-                        <h3 className="text-lg font-bold">Click to enable audio</h3>
-                        <p className="text-sm text-muted-foreground mt-1">Browser requires interaction to play sound</p>
-                    </div>
-                </div>
-            )}
+        <div className="p-2 border-b shrink-0" onClick={handlePlayerClick}>
             <Card className="p-3 bg-gradient-to-r from-primary/10 to-purple-500/10 dark:from-primary/20 dark:to-purple-500/20 border-primary/30">
+                {/* Muted indicator banner */}
+                {isMuted && showUnmutePrompt && !media.isEmbed && (
+                    <div
+                        className="mb-2 -mt-1 -mx-1 bg-primary/20 text-primary text-sm py-1.5 px-3 rounded-t-md flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/30 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleUnmute(); }}
+                    >
+                        <VolumeX className="w-4 h-4" />
+                        <span>🔇 Sound is muted - Click here to enable audio</span>
+                        <Volume2 className="w-4 h-4" />
+                    </div>
+                )}
+
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 overflow-hidden flex-1">
                         {/* Thumbnail / Preview */}
@@ -345,7 +369,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                             </div>
                         ) : media.type === 'audio' ? (
                             <>
-                                <div className="relative">
+                                <div className="relative" onClick={handleUnmute}>
                                     <Image
                                         src={media.thumbnail}
                                         alt={media.title}
@@ -362,12 +386,19 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                                             </div>
                                         </div>
                                     )}
+                                    {isMuted && (
+                                        <div className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5">
+                                            <VolumeX className="w-3 h-3 text-white" />
+                                        </div>
+                                    )}
                                 </div>
                                 <audio
                                     ref={audioRef}
                                     src={media.url}
                                     autoPlay
                                     loop
+                                    muted={isMuted}
+                                    playsInline
                                     onTimeUpdate={handleTimeUpdate}
                                     onLoadedMetadata={handleLoadedMetadata}
                                 />
@@ -397,6 +428,11 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                                 </div>
                                 {isPlaying && !videoError && (
                                     <div className="absolute bottom-1 left-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                )}
+                                {isMuted && (
+                                    <div className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5">
+                                        <VolumeX className="w-3 h-3 text-white" />
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -443,14 +479,19 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={handlePlayPause}
+                                    onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
                                     disabled={!isHost}
                                     title={isHost ? (isPlaying ? 'Pause' : 'Play') : 'Only host can control'}
                                     className={cn(!isHost && "opacity-50")}
                                 >
                                     {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                                 </Button>
-                                <Button variant="ghost" size="icon" onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
+                                <Button
+                                    variant={isMuted ? "destructive" : "ghost"}
+                                    size="icon"
+                                    onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+                                    title={isMuted ? 'Click to unmute' : 'Mute'}
+                                >
                                     {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                                 </Button>
                             </>
@@ -458,17 +499,17 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                         {media.type === 'video' && (
                             <>
                                 {!media.isEmbed && (
-                                    <Button variant="ghost" size="icon" onClick={handlePiP} title="Picture in Picture">
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handlePiP(); }} title="Picture in Picture">
                                         <PictureInPicture2 className="w-5 h-5" />
                                     </Button>
                                 )}
-                                <Button variant="ghost" size="icon" onClick={() => setIsExpanded(true)} title="Expand">
+                                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setIsExpanded(true); }} title="Expand">
                                     <Maximize2 className="w-5 h-5" />
                                 </Button>
                             </>
                         )}
                         {isHost && (
-                            <Button variant="ghost" size="icon" onClick={onStop} title="Stop Sharing">
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onStop(); }} title="Stop Sharing">
                                 <X className="w-5 h-5" />
                             </Button>
                         )}

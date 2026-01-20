@@ -25,6 +25,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     const [videoError, setVideoError] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [audioEnabled, setAudioEnabled] = useState(false);
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -76,6 +77,27 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     useEffect(() => {
         setVideoError(false);
     }, [media.url]);
+
+    // Enable audio on user interaction (handles autoplay policy)
+    const enableAudio = () => {
+        const mediaElement = videoRef.current || audioRef.current;
+        if (mediaElement) {
+            mediaElement.muted = false;
+            mediaElement.play().then(() => {
+                setAudioEnabled(true);
+            }).catch(e => {
+                console.log('Playback failed, trying muted:', e);
+                // If it fails, try muted first then unmute
+                mediaElement.muted = true;
+                mediaElement.play().then(() => {
+                    mediaElement.muted = false;
+                    setAudioEnabled(true);
+                }).catch(console.error);
+            });
+        } else {
+            setAudioEnabled(true);
+        }
+    };
 
     // Time update handler
     const handleTimeUpdate = () => {
@@ -294,6 +316,19 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     // Compact player bar
     return (
         <div className="p-2 border-b shrink-0">
+            {/* Click to enable audio overlay */}
+            {!audioEnabled && !media.isEmbed && (
+                <div
+                    className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center cursor-pointer"
+                    onClick={enableAudio}
+                >
+                    <div className="bg-card p-6 rounded-xl text-center shadow-2xl border">
+                        <Volume2 className="w-12 h-12 mx-auto mb-3 text-primary animate-pulse" />
+                        <h3 className="text-lg font-bold">Click to enable audio</h3>
+                        <p className="text-sm text-muted-foreground mt-1">Browser requires interaction to play sound</p>
+                    </div>
+                </div>
+            )}
             <Card className="p-3 bg-gradient-to-r from-primary/10 to-purple-500/10 dark:from-primary/20 dark:to-purple-500/20 border-primary/30">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 overflow-hidden flex-1">

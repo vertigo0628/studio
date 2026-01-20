@@ -37,6 +37,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMedia, setCurrentMedia] = useState<Media | null>(null);
+  const [mediaHostId, setMediaHostId] = useState<string | null>(null);
   const router = useRouter();
 
   // WebRTC calling
@@ -94,8 +95,10 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
         const data = snapshot.data();
         if (data.currentMedia) {
           setCurrentMedia(data.currentMedia as Media);
+          setMediaHostId(data.mediaHostId || null);
         } else {
           setCurrentMedia(null);
+          setMediaHostId(null);
         }
       }
     });
@@ -232,7 +235,10 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
 
     try {
       const roomRef = doc(db, 'rooms', roomId);
-      await setDoc(roomRef, { currentMedia: media }, { merge: true });
+      await setDoc(roomRef, {
+        currentMedia: media,
+        mediaHostId: user.id, // Track who started the media (the host)
+      }, { merge: true });
 
       const messagesRef = collection(db, 'rooms', roomId, 'messages');
       await addDoc(messagesRef, {
@@ -312,7 +318,15 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
           roomId={roomId}
           onDeleteChat={handleDeleteChat}
         />
-        {currentMedia && <MediaPlayer media={currentMedia} onStop={handleStopMedia} />}
+        {currentMedia && user && (
+          <MediaPlayer
+            media={currentMedia}
+            onStop={handleStopMedia}
+            roomId={roomId}
+            userId={user.id}
+            isHost={mediaHostId === user.id}
+          />
+        )}
         <MessageList messages={messages} currentUser={user} onDeleteMessage={handleDeleteMessage} />
         <TypingIndicator users={typingUsers} />
         <ChatInput onSendMessage={handleSendMessage} onSendFile={handleSendFile} onTyping={setTyping} />

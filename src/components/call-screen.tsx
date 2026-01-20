@@ -1,12 +1,10 @@
-
 "use client";
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, X } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, VolumeX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import type { Call } from '@/lib/types';
-import { useState } from 'react';
 
 type CallScreenProps = {
     callState: 'calling' | 'ringing' | 'connected';
@@ -31,9 +29,12 @@ export default function CallScreen({
 }: CallScreenProps) {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
+    const [isRemoteMuted, setIsRemoteMuted] = useState(false);
+    const [audioStarted, setAudioStarted] = useState(false);
 
     // Attach local stream to video element
     useEffect(() => {
@@ -42,14 +43,41 @@ export default function CallScreen({
         }
     }, [localStream]);
 
-    // Attach remote stream to video element
+    // Attach remote stream to video/audio elements
     useEffect(() => {
-        if (remoteVideoRef.current && remoteStream) {
-            remoteVideoRef.current.srcObject = remoteStream;
+        if (remoteStream) {
+            // Attach to video element
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = remoteStream;
+                // Try to play (may be blocked by autoplay policy)
+                remoteVideoRef.current.play().catch(e => {
+                    console.log('Video autoplay blocked, user interaction needed');
+                });
+            }
+            // Attach to separate audio element for better audio handling
+            if (remoteAudioRef.current) {
+                remoteAudioRef.current.srcObject = remoteStream;
+                remoteAudioRef.current.play().catch(e => {
+                    console.log('Audio autoplay blocked, user interaction needed');
+                });
+            }
         }
     }, [remoteStream]);
 
-    // Toggle mute
+    // Function to manually start audio (for browsers that block autoplay)
+    const startAudio = () => {
+        if (remoteVideoRef.current) {
+            remoteVideoRef.current.muted = false;
+            remoteVideoRef.current.play().catch(console.error);
+        }
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.muted = false;
+            remoteAudioRef.current.play().catch(console.error);
+        }
+        setAudioStarted(true);
+    };
+
+    // Toggle mute (local microphone)
     const toggleMute = () => {
         if (localStream) {
             localStream.getAudioTracks().forEach(track => {
@@ -69,12 +97,23 @@ export default function CallScreen({
         }
     };
 
+    // Toggle remote audio (speaker)
+    const toggleRemoteAudio = () => {
+        if (remoteVideoRef.current) {
+            remoteVideoRef.current.muted = !remoteVideoRef.current.muted;
+        }
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.muted = !remoteAudioRef.current.muted;
+        }
+        setIsRemoteMuted(!isRemoteMuted);
+    };
+
     // Ringing state - incoming call
     if (callState === 'ringing' && incomingCall) {
         return (
             <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center text-white">
                 <div className="text-center space-y-6">
-                    <Avatar className="w-32 h-32 mx-auto border-4 border-primary">
+                    <Avatar className="w-32 h-32 mx-auto border-4 border-primary animate-pulse">
                         <AvatarImage src={incomingCall.callerAvatar} />
                         <AvatarFallback className="text-4xl">{incomingCall.callerName.substring(0, 2)}</AvatarFallback>
                     </Avatar>
@@ -138,9 +177,31 @@ export default function CallScreen({
     // Connected state - show video/audio feeds
     return (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
+            {/* Hidden audio element for better audio playback */}
+            <audio
+                ref={remoteAudioRef}
+                autoPlay
+                playsInline
+                style={{ display: 'none' }}
+            />
+
+            {/* Click to enable audio overlay (if blocked by autoplay) */}
+            {!audioStarted && remoteStream && (
+                <div
+                    className="absolute inset-0 z-10 bg-black/50 flex items-center justify-center cursor-pointer"
+                    onClick={startAudio}
+                >
+                    <div className="text-center text-white p-6 bg-black/80 rounded-xl">
+                        <Volume2 className="w-16 h-16 mx-auto mb-4 animate-pulse" />
+                        <p className="text-xl font-bold">Click to enable audio</p>
+                        <p className="text-muted-foreground text-sm mt-2">Browser requires interaction to play sound</p>
+                    </div>
+                </div>
+            )}
+
             {/* Remote Video (large) */}
-            {callType === 'video' ? (
-                <div className="flex-1 relative">
+            {callType === 'video' || callType === 'screen' ? (
+                <div className="flex-1 relative" onClick={startAudio}>
                     <video
                         ref={remoteVideoRef}
                         autoPlay
@@ -160,16 +221,16 @@ export default function CallScreen({
                 </div>
             ) : (
                 // Audio call - show avatar
-                <div className="flex-1 flex items-center justify-center">
+                <div className="flex-1 flex items-center justify-center" onClick={startAudio}>
                     <div className="text-center text-white">
                         <div className="w-32 h-32 mx-auto rounded-full bg-primary/20 flex items-center justify-center mb-4">
                             <Phone className="w-16 h-16 text-primary" />
                         </div>
                         <h2 className="text-2xl font-bold">Audio Call</h2>
-                        <p className="text-muted-foreground">Connected</p>
-                        {/* Hidden audio elements */}
-                        <audio ref={remoteVideoRef as any} autoPlay />
-                        <audio ref={localVideoRef as any} autoPlay muted />
+                        <p className="text-green-500 font-medium">Connected</p>
+                        <p className="text-muted-foreground text-sm mt-2">
+                            {audioStarted ? "Audio playing" : "Tap to enable audio"}
+                        </p>
                     </div>
                 </div>
             )}
@@ -181,16 +242,28 @@ export default function CallScreen({
                     variant={isMuted ? "destructive" : "secondary"}
                     className="rounded-full w-14 h-14"
                     onClick={toggleMute}
+                    title={isMuted ? "Unmute" : "Mute"}
                 >
                     {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
                 </Button>
 
-                {callType === 'video' && (
+                <Button
+                    size="lg"
+                    variant={isRemoteMuted ? "destructive" : "secondary"}
+                    className="rounded-full w-14 h-14"
+                    onClick={toggleRemoteAudio}
+                    title={isRemoteMuted ? "Unmute speaker" : "Mute speaker"}
+                >
+                    {isRemoteMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                </Button>
+
+                {(callType === 'video' || callType === 'screen') && (
                     <Button
                         size="lg"
                         variant={isCameraOff ? "destructive" : "secondary"}
                         className="rounded-full w-14 h-14"
                         onClick={toggleCamera}
+                        title={isCameraOff ? "Turn camera on" : "Turn camera off"}
                     >
                         {isCameraOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
                     </Button>
@@ -201,6 +274,7 @@ export default function CallScreen({
                     variant="destructive"
                     className="rounded-full w-14 h-14"
                     onClick={onEndCall}
+                    title="End call"
                 >
                     <PhoneOff className="w-6 h-6" />
                 </Button>

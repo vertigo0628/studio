@@ -62,3 +62,13 @@ export type Call = {
   offer?: RTCSessionDescriptionInit;
   answer?: RTCSessionDescriptionInit;
 };
+
+// Media sync state for watch-together
+export type MediaSyncState = {
+  hostId: string; // User ID of the host (controller)
+  isPlaying: boolean;
+  currentTime: number; // In seconds
+  playbackRate: number;
+  updatedAt: number; // Timestamp for latency calculation
+  seekedAt?: number; // When a seek happened (for immediate sync)
+};

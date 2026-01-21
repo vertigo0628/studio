@@ -233,11 +233,24 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
     const db = getDb();
     if (!user || !db) return;
 
+    // Debug: Log the media URL being saved
+    console.log('🎬 Starting media:', {
+      title: media.title,
+      url: media.url,
+      sourceType: media.sourceType,
+      isBlob: media.url.startsWith('blob:'),
+    });
+
+    // Warn if using blob URL (only works locally)
+    if (media.url.startsWith('blob:')) {
+      console.warn('⚠️ Using blob URL - this only works for the current user!');
+    }
+
     try {
       const roomRef = doc(db, 'rooms', roomId);
       await setDoc(roomRef, {
         currentMedia: media,
-        mediaHostId: user.id, // Track who started the media (the host)
+        mediaHostId: user.id,
       }, { merge: true });
 
       const messagesRef = collection(db, 'rooms', roomId, 'messages');

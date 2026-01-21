@@ -25,8 +25,25 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     const [isLoading, setIsLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [isBlobUrl, setIsBlobUrl] = useState(false);
     const audioRef = useRef<HTMLAudioElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+
+    // Debug: Log received media
+    useEffect(() => {
+        const isBlob = media.url.startsWith('blob:');
+        setIsBlobUrl(isBlob);
+        console.log('📺 Media Player received:', {
+            title: media.title,
+            url: media.url.substring(0, 100) + (media.url.length > 100 ? '...' : ''),
+            sourceType: media.sourceType,
+            isHost,
+            isBlob,
+        });
+        if (isBlob && !isHost) {
+            console.error('❌ Viewer received blob URL - this will not work!');
+        }
+    }, [media.url, media.title, media.sourceType, isHost]);
 
     // Media sync hook
     const {

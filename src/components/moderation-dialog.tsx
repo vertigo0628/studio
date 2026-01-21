@@ -20,10 +20,11 @@ type ModerationDialogProps = {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onStartMedia: (media: Media) => void;
+  onP2PFile?: (file: File) => void; // Callback to pass P2P file reference
   roomId?: string;
 };
 
-export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia, roomId }: ModerationDialogProps) {
+export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia, onP2PFile, roomId }: ModerationDialogProps) {
   const { toast } = useToast();
 
   // Handle URL streaming
@@ -74,7 +75,7 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia, r
 
   // Handle P2P streaming start
   const handleP2PStart = (file: File) => {
-    // Create object URL for local playback
+    // Create object URL for host's local playback fallback
     const objectUrl = URL.createObjectURL(file);
 
     const media: Media = {
@@ -84,13 +85,18 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia, r
       thumbnail: file.type.startsWith('audio/')
         ? PlaceHolderImages.find(p => p.id === 'album-art-1')?.imageUrl || ''
         : PlaceHolderImages.find(p => p.id === 'video-thumbnail-1')?.imageUrl || '',
-      url: objectUrl, // Object URL for local file playback
+      url: objectUrl, // Object URL for host's local playback
       sourceType: 'p2p',
     };
 
+    // Pass file reference for P2P WebRTC streaming
+    if (onP2PFile) {
+      onP2PFile(file);
+    }
+
     toast({
       title: "P2P Stream Started",
-      description: "Playing from your device. Note: Only you can see this stream currently.",
+      description: "Streaming to viewers via WebRTC",
     });
 
     onStartMedia(media);

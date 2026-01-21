@@ -18,13 +18,14 @@ import type { Room } from '@/lib/types';
 type ChatHeaderProps = {
     partner: User;
     onStartMedia: (media: Media) => void;
+    onP2PFile?: (file: File) => void;
     onStartCall: (type: 'audio' | 'video') => void;
     onStartScreenShare: () => void;
-    roomId: string; // Add roomId to props
+    roomId: string;
     onDeleteChat?: () => void;
 };
 
-export default function ChatHeader({ partner, onStartMedia, onStartCall, onStartScreenShare, roomId, onDeleteChat }: ChatHeaderProps) {
+export default function ChatHeader({ partner, onStartMedia, onP2PFile, onStartCall, onStartScreenShare, roomId, onDeleteChat }: ChatHeaderProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [room, setRoom] = useState<Room | null>(null);
@@ -124,7 +125,7 @@ export default function ChatHeader({ partner, onStartMedia, onStartCall, onStart
                     </Button>
                 </div>
             </div>
-            <ModerationDialog isOpen={isDialogOpen} onOpenChange={setIsDialogOpen} onStartMedia={onStartMedia} />
+            <ModerationDialog isOpen={isDialogOpen} onOpenChange={setIsDialogOpen} onStartMedia={onStartMedia} onP2PFile={onP2PFile} />
         </>
     );
 }

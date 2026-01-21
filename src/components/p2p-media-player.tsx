@@ -1,0 +1,516 @@
+"use client";
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Card } from './ui/card';
+import { Button } from './ui/button';
+import {
+    Play, Pause, Volume2, VolumeX, X, Radio, Users, Loader2,
+    Crown, AlertCircle, Wifi
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { getDb } from '@/lib/firebase';
+import {
+    doc, collection, addDoc, onSnapshot, updateDoc, deleteDoc,
+    serverTimestamp, query, where, getDocs
+} from 'firebase/firestore';
+import type { User, Media } from '@/lib/types';
+
+// STUN servers for WebRTC
+const servers: RTCConfiguration = {
+    iceServers: [
+        { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
+    ],
+    iceCandidatePoolSize: 10,
+};
+
+type P2PMediaPlayerProps = {
+    media: Media;
+    file?: File; // Only host has this
+    onStop: () => void;
+    roomId: string;
+    userId: string;
+    isHost: boolean;
+};
+
+export default function P2PMediaPlayer({
+    media,
+    file,
+    onStop,
+    roomId,
+    userId,
+    isHost
+}: P2PMediaPlayerProps) {
+    // State
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isMuted, setIsMuted] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
+    const [hasError, setHasError] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [viewerCount, setViewerCount] = useState(0);
+    const [streamConnected, setStreamConnected] = useState(false);
+
+    // Refs
+    const localVideoRef = useRef<HTMLVideoElement>(null);
+    const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+    const mediaStreamRef = useRef<MediaStream | null>(null);
+    const p2pDocIdRef = useRef<string | null>(null);
+    const unsubscribesRef = useRef<(() => void)[]>([]);
+
+    // Host: Set up video element with local file
+    useEffect(() => {
+        if (!isHost || !file) return;
+
+        const video = localVideoRef.current;
+        if (!video) return;
+
+        // Create object URL for the file
+        const objectUrl = URL.createObjectURL(file);
+        video.src = objectUrl;
+        video.muted = true; // Mute local to prevent echo
+
+        video.onloadeddata = () => {
+            setIsLoading(false);
+            video.play().then(() => {
+                setIsPlaying(true);
+                // Capture the stream for WebRTC
+                captureAndBroadcast(video);
+            }).catch(e => console.error('Play failed:', e));
+        };
+
+        video.onerror = () => {
+            setHasError(true);
+            setErrorMessage('Failed to load media file');
+            setIsLoading(false);
+        };
+
+        return () => {
+            URL.revokeObjectURL(objectUrl);
+        };
+    }, [isHost, file]);
+
+    // Host: Capture stream and set up broadcasting
+    const captureAndBroadcast = useCallback(async (video: HTMLVideoElement) => {
+        const db = getDb();
+        if (!db) return;
+
+        try {
+            // Capture stream from video element
+            const stream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream();
+            mediaStreamRef.current = stream;
+
+            console.log('📡 Captured stream:', {
+                videoTracks: stream.getVideoTracks().length,
+                audioTracks: stream.getAudioTracks().length,
+            });
+
+            // Create P2P stream document
+            const p2pRef = collection(db, 'rooms', roomId, 'p2pStreams');
+            const p2pDoc = await addDoc(p2pRef, {
+                hostId: userId,
+                fileName: file?.name || media.title,
+                fileType: file?.type || 'video',
+                status: 'active',
+                createdAt: serverTimestamp(),
+            });
+            p2pDocIdRef.current = p2pDoc.id;
+
+            // Listen for viewer connection requests
+            const requestsRef = collection(db, 'rooms', roomId, 'p2pStreams', p2pDoc.id, 'requests');
+            const unsubscribe = onSnapshot(requestsRef, async (snapshot) => {
+                for (const change of snapshot.docChanges()) {
+                    if (change.type === 'added') {
+                        const data = change.doc.data() as { offer: RTCSessionDescriptionInit; viewerId: string; type: string; status: string };
+                        if (data.type === 'offer' && data.status === 'pending') {
+                            await handleViewerOffer(p2pDoc.id, change.doc.id, data);
+                        }
+                    }
+                }
+            });
+            unsubscribesRef.current.push(unsubscribe);
+
+            console.log('✅ P2P broadcast ready, doc:', p2pDoc.id);
+        } catch (e) {
+            console.error('Failed to start P2P broadcast:', e);
+            setHasError(true);
+            setErrorMessage('Failed to start P2P streaming');
+        }
+    }, [roomId, userId, file, media.title]);
+
+    // Host: Handle incoming viewer connection
+    const handleViewerOffer = useCallback(async (
+        p2pDocId: string,
+        requestId: string,
+        data: { offer: RTCSessionDescriptionInit; viewerId: string }
+    ) => {
+        const db = getDb();
+        const stream = mediaStreamRef.current;
+        if (!db || !stream) return;
+
+        try {
+            console.log('📞 Viewer connecting:', data.viewerId);
+
+            const pc = new RTCPeerConnection(servers);
+            peerConnectionsRef.current.set(requestId, pc);
+
+            // Add tracks to send to viewer
+            stream.getTracks().forEach(track => {
+                pc.addTrack(track, stream);
+            });
+
+            // Handle ICE candidates
+            pc.onicecandidate = async (event) => {
+                if (event.candidate) {
+                    const candidatesRef = collection(
+                        db, 'rooms', roomId, 'p2pStreams', p2pDocId,
+                        'requests', requestId, 'hostCandidates'
+                    );
+                    await addDoc(candidatesRef, event.candidate.toJSON());
+                }
+            };
+
+            // Set remote description (viewer's offer)
+            await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+            // Create answer
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            // Send answer to viewer
+            const requestRef = doc(
+                db, 'rooms', roomId, 'p2pStreams', p2pDocId, 'requests', requestId
+            );
+            await updateDoc(requestRef, {
+                answer: { type: answer.type, sdp: answer.sdp },
+                status: 'answered',
+            });
+
+            // Listen for viewer's ICE candidates
+            const viewerCandidatesRef = collection(
+                db, 'rooms', roomId, 'p2pStreams', p2pDocId,
+                'requests', requestId, 'viewerCandidates'
+            );
+            const unsubCandidate = onSnapshot(viewerCandidatesRef, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const candidate = new RTCIceCandidate(change.doc.data());
+                        pc.addIceCandidate(candidate).catch(console.error);
+                    }
+                });
+            });
+            unsubscribesRef.current.push(unsubCandidate);
+
+            // Track viewer count
+            pc.onconnectionstatechange = () => {
+                console.log('Connection state:', pc.connectionState);
+                if (pc.connectionState === 'connected') {
+                    setViewerCount(prev => prev + 1);
+                } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                    setViewerCount(prev => Math.max(0, prev - 1));
+                    pc.close();
+                    peerConnectionsRef.current.delete(requestId);
+                }
+            };
+
+        } catch (e) {
+            console.error('Error handling viewer offer:', e);
+        }
+    }, [roomId]);
+
+    // Viewer: Connect to P2P stream
+    useEffect(() => {
+        if (isHost || !media.url.startsWith('blob:')) return;
+
+        // This viewer needs to connect via WebRTC
+        connectToP2PStream();
+    }, [isHost, media.url]);
+
+    const connectToP2PStream = useCallback(async () => {
+        const db = getDb();
+        if (!db) return;
+
+        setIsLoading(true);
+        setErrorMessage('Connecting to host...');
+
+        try {
+            // Find active P2P stream for this room
+            const p2pRef = collection(db, 'rooms', roomId, 'p2pStreams');
+            const q = query(p2pRef, where('status', '==', 'active'));
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                setHasError(true);
+                setErrorMessage('No active P2P stream found');
+                setIsLoading(false);
+                return;
+            }
+
+            const p2pDoc = snapshot.docs[0];
+            const p2pDocId = p2pDoc.id;
+            console.log('🔗 Found P2P stream:', p2pDocId);
+
+            // Create peer connection
+            const pc = new RTCPeerConnection(servers);
+            const remoteStream = new MediaStream();
+
+            pc.ontrack = (event) => {
+                console.log('📥 Received track:', event.track.kind);
+                event.streams[0].getTracks().forEach(track => {
+                    remoteStream.addTrack(track);
+                });
+
+                // Attach to video element
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = remoteStream;
+                    remoteVideoRef.current.muted = isMuted;
+                    remoteVideoRef.current.play().then(() => {
+                        setIsLoading(false);
+                        setIsPlaying(true);
+                        setStreamConnected(true);
+                        console.log('✅ P2P stream connected!');
+                    }).catch(e => {
+                        console.log('Autoplay blocked, user needs to click');
+                        setIsLoading(false);
+                    });
+                }
+            };
+
+            pc.onconnectionstatechange = () => {
+                console.log('Viewer connection state:', pc.connectionState);
+                if (pc.connectionState === 'failed') {
+                    setHasError(true);
+                    setErrorMessage('Connection to host failed');
+                }
+            };
+
+            // Create offer
+            pc.addTransceiver('video', { direction: 'recvonly' });
+            pc.addTransceiver('audio', { direction: 'recvonly' });
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            // Send offer to host
+            const requestsRef = collection(
+                db, 'rooms', roomId, 'p2pStreams', p2pDocId, 'requests'
+            );
+            const requestDoc = await addDoc(requestsRef, {
+                viewerId: userId,
+                offer: { type: offer.type, sdp: offer.sdp },
+                type: 'offer',
+                status: 'pending',
+                createdAt: serverTimestamp(),
+            });
+
+            // Handle ICE candidates
+            pc.onicecandidate = async (event) => {
+                if (event.candidate) {
+                    const candidatesRef = collection(
+                        db, 'rooms', roomId, 'p2pStreams', p2pDocId,
+                        'requests', requestDoc.id, 'viewerCandidates'
+                    );
+                    await addDoc(candidatesRef, event.candidate.toJSON());
+                }
+            };
+
+            // Listen for host's answer
+            const requestRef = doc(
+                db, 'rooms', roomId, 'p2pStreams', p2pDocId,
+                'requests', requestDoc.id
+            );
+            const unsubAnswer = onSnapshot(requestRef, async (snapshot) => {
+                const data = snapshot.data();
+                if (data?.answer && pc.signalingState !== 'stable') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    console.log('📝 Set remote answer');
+                }
+            });
+            unsubscribesRef.current.push(unsubAnswer);
+
+            // Listen for host's ICE candidates
+            const hostCandidatesRef = collection(
+                db, 'rooms', roomId, 'p2pStreams', p2pDocId,
+                'requests', requestDoc.id, 'hostCandidates'
+            );
+            const unsubCandidates = onSnapshot(hostCandidatesRef, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const candidate = new RTCIceCandidate(change.doc.data());
+                        pc.addIceCandidate(candidate).catch(console.error);
+                    }
+                });
+            });
+            unsubscribesRef.current.push(unsubCandidates);
+
+            peerConnectionsRef.current.set('viewer', pc);
+
+        } catch (e) {
+            console.error('Failed to connect to P2P stream:', e);
+            setHasError(true);
+            setErrorMessage('Failed to connect to P2P stream');
+            setIsLoading(false);
+        }
+    }, [roomId, userId, isMuted]);
+
+    // Toggle mute
+    const toggleMute = useCallback(() => {
+        const video = isHost ? localVideoRef.current : remoteVideoRef.current;
+        if (video) {
+            video.muted = !video.muted;
+            setIsMuted(video.muted);
+            if (!video.muted) {
+                video.play().catch(console.error);
+            }
+        }
+    }, [isHost]);
+
+    // Toggle play/pause (host only)
+    const togglePlayPause = useCallback(() => {
+        if (!isHost) return;
+        const video = localVideoRef.current;
+        if (video) {
+            if (video.paused) {
+                video.play();
+                setIsPlaying(true);
+            } else {
+                video.pause();
+                setIsPlaying(false);
+            }
+        }
+    }, [isHost]);
+
+    // Cleanup
+    useEffect(() => {
+        return () => {
+            // Close all peer connections
+            peerConnectionsRef.current.forEach(pc => pc.close());
+            peerConnectionsRef.current.clear();
+
+            // Unsubscribe from all listeners
+            unsubscribesRef.current.forEach(unsub => unsub());
+
+            // Delete P2P stream doc if host
+            if (isHost && p2pDocIdRef.current) {
+                const db = getDb();
+                if (db) {
+                    deleteDoc(doc(db, 'rooms', roomId, 'p2pStreams', p2pDocIdRef.current))
+                        .catch(console.error);
+                }
+            }
+        };
+    }, [isHost, roomId]);
+
+    // Handle stop
+    const handleStop = useCallback(() => {
+        // Cleanup happens in useEffect
+        onStop();
+    }, [onStop]);
+
+    return (
+        <div className="p-2 border-b shrink-0">
+            <Card className="p-3 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30">
+                {/* Status banner */}
+                {isLoading && (
+                    <div className="mb-3 bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 py-2 px-3 rounded-md flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">
+                            {isHost ? 'Starting P2P stream...' : errorMessage || 'Connecting to host...'}
+                        </span>
+                    </div>
+                )}
+
+                {hasError && (
+                    <div className="mb-3 bg-destructive/20 text-destructive py-2 px-3 rounded-md">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" />
+                            <span className="text-sm font-medium">{errorMessage}</span>
+                        </div>
+                    </div>
+                )}
+
+                {streamConnected && !isHost && isMuted && (
+                    <div
+                        className="mb-3 bg-primary/20 text-primary py-2 px-3 rounded-md flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/30"
+                        onClick={toggleMute}
+                    >
+                        <VolumeX className="w-4 h-4" />
+                        <span className="font-medium">Click to enable audio</span>
+                        <Volume2 className="w-4 h-4" />
+                    </div>
+                )}
+
+                <div className="flex items-center gap-4">
+                    {/* Video preview */}
+                    <div className="relative w-32 h-20 rounded-md overflow-hidden bg-black shrink-0">
+                        {isHost ? (
+                            <video
+                                ref={localVideoRef}
+                                className="w-full h-full object-cover"
+                                muted
+                                playsInline
+                            />
+                        ) : (
+                            <video
+                                ref={remoteVideoRef}
+                                className="w-full h-full object-cover"
+                                muted={isMuted}
+                                playsInline
+                            />
+                        )}
+                        {isPlaying && (
+                            <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-purple-600 dark:text-purple-400">
+                            <Radio className="w-4 h-4" />
+                            <span>P2P Streaming</span>
+                            {isHost ? (
+                                <span className="flex items-center gap-1 text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-1.5 py-0.5 rounded">
+                                    <Crown className="w-3 h-3" />
+                                    Host
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1 text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded">
+                                    <Wifi className="w-3 h-3" />
+                                    Connected
+                                </span>
+                            )}
+                        </div>
+                        <p className="font-bold truncate mt-1">{media.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                            {isHost ? `${viewerCount} viewer${viewerCount !== 1 ? 's' : ''} connected` : 'From device'}
+                        </p>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex items-center gap-1 shrink-0">
+                        {isHost && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={togglePlayPause}
+                            >
+                                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                            </Button>
+                        )}
+                        <Button
+                            variant={isMuted ? "destructive" : "ghost"}
+                            size="icon"
+                            onClick={toggleMute}
+                        >
+                            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                        </Button>
+                        {isHost && (
+                            <Button variant="ghost" size="icon" onClick={handleStop}>
+                                <X className="w-5 h-5" />
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </Card>
+        </div>
+    );
+}

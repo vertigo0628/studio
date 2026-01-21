@@ -5,6 +5,7 @@ import ChatHeader from '@/components/chat-header';
 import MessageList from '@/components/message-list';
 import ChatInput from '@/components/chat-input';
 import MediaPlayer from '@/components/media-player';
+import P2PMediaPlayer from '@/components/p2p-media-player';
 import CallScreen from '@/components/call-screen';
 import type { Message, Media } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -38,6 +39,7 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMedia, setCurrentMedia] = useState<Media | null>(null);
   const [mediaHostId, setMediaHostId] = useState<string | null>(null);
+  const [p2pFile, setP2pFile] = useState<File | null>(null); // P2P file reference
   const router = useRouter();
 
   // WebRTC calling
@@ -326,19 +328,31 @@ export default function ChatLayout({ roomId }: ChatLayoutProps) {
         <ChatHeader
           partner={partnerUser}
           onStartMedia={handleStartMedia}
+          onP2PFile={setP2pFile}
           onStartCall={handleStartCall}
           onStartScreenShare={startScreenShare}
           roomId={roomId}
           onDeleteChat={handleDeleteChat}
         />
         {currentMedia && user && (
-          <MediaPlayer
-            media={currentMedia}
-            onStop={handleStopMedia}
-            roomId={roomId}
-            userId={user.id}
-            isHost={mediaHostId === user.id}
-          />
+          currentMedia.sourceType === 'p2p' ? (
+            <P2PMediaPlayer
+              media={currentMedia}
+              file={p2pFile || undefined}
+              onStop={handleStopMedia}
+              roomId={roomId}
+              userId={user.id}
+              isHost={mediaHostId === user.id}
+            />
+          ) : (
+            <MediaPlayer
+              media={currentMedia}
+              onStop={handleStopMedia}
+              roomId={roomId}
+              userId={user.id}
+              isHost={mediaHostId === user.id}
+            />
+          )
         )}
         <MessageList messages={messages} currentUser={user} onDeleteMessage={handleDeleteMessage} />
         <TypingIndicator users={typingUsers} />

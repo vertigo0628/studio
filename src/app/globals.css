@@ -83,6 +83,11 @@
   * {
     @apply border-border;
   }
+  html, body {
+    height: 100%;
+    overscroll-behavior: none; /* Prevent pull-to-refresh / rubber banding */
+    touch-action: manipulation; /* Improve tap delay */
+  }
   body {
     @apply bg-background text-foreground;
   }

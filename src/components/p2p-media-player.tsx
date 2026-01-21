@@ -498,7 +498,7 @@ export default function P2PMediaPlayer({
                             "transition-all duration-300 ease-in-out",
                             isExpanded
                                 ? "fixed inset-0 z-50 bg-black flex flex-col items-center justify-center"
-                                : "relative w-32 h-20 rounded-md overflow-hidden bg-black shrink-0 cursor-pointer group"
+                                : "relative w-32 h-20 md:w-64 md:h-36 lg:w-80 lg:h-44 rounded-md overflow-hidden bg-black shrink-0 cursor-pointer group"
                         )}
                         onClick={() => !isExpanded && setIsExpanded(true)}
                     >

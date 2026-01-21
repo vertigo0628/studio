@@ -259,110 +259,9 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
         );
     }
 
-    // Expanded fullscreen view for video
-    if (isExpanded && media.type === 'video') {
-        return (
-            <div className="fixed inset-0 z-50 bg-black flex flex-col" onClick={handleStartPlayback}>
-                <div className="absolute top-4 right-4 z-10 flex gap-2">
-                    {isSyncing && (
-                        <div className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Syncing...
-                        </div>
-                    )}
-                    <Button variant="secondary" size="icon" onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }}>
-                        <X className="w-5 h-5" />
-                    </Button>
-                </div>
+    // Expanded fullscreen view for video - REMOVED (Integrated into main render for persistence)
 
-                <div className="flex-1 flex items-center justify-center p-4">
-                    <video
-                        ref={videoRef}
-                        src={media.url}
-                        className="max-w-full max-h-full rounded-lg"
-                        muted={isMuted}
-                        playsInline
-                        onLoadedData={handleLoadedData}
-                        onError={handleError}
-                        onTimeUpdate={handleTimeUpdate}
-                        onLoadedMetadata={handleLoadedMetadata}
-                    />
-                </div>
-
-                {/* Unmute prompt */}
-                {isMuted && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-6 py-4 rounded-xl text-center">
-                        <Volume2 className="w-12 h-12 mx-auto mb-2 animate-pulse" />
-                        <p className="text-lg font-bold">Click to Enable Audio</p>
-                        <p className="text-sm text-gray-400">Browser requires interaction</p>
-                    </div>
-                )}
-
-                {/* Controls */}
-                <div className="p-4 bg-black/80 text-white">
-                    <div className="max-w-4xl mx-auto space-y-3">
-                        {/* Progress bar */}
-                        <div className="flex items-center gap-3">
-                            <span className="text-sm font-mono w-12">{formatTime(currentTime)}</span>
-                            <input
-                                type="range"
-                                min={0}
-                                max={duration || 100}
-                                value={currentTime}
-                                onChange={handleSeek}
-                                disabled={!isHost}
-                                className={cn(
-                                    "flex-1 h-2 bg-gray-600 rounded-full appearance-none cursor-pointer",
-                                    !isHost && "opacity-50 cursor-not-allowed"
-                                )}
-                            />
-                            <span className="text-sm font-mono w-12">{formatTime(duration)}</span>
-                        </div>
-
-                        {/* Control buttons */}
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
-                                    disabled={!isHost}
-                                    className={cn(!isHost && "opacity-50")}
-                                >
-                                    {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-                                </Button>
-                                <Button
-                                    variant={isMuted ? "destructive" : "ghost"}
-                                    size="icon"
-                                    onClick={(e) => { e.stopPropagation(); toggleMute(); }}
-                                >
-                                    {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                                </Button>
-                            </div>
-                            <div className="text-center">
-                                <p className="font-bold">{media.title}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {isHost ? (
-                                    <span className="flex items-center gap-1 text-sm bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">
-                                        <Crown className="w-4 h-4" />
-                                        Host
-                                    </span>
-                                ) : (
-                                    <span className="flex items-center gap-1 text-sm bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
-                                        <Users className="w-4 h-4" />
-                                        Synced
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // Compact player bar
+    // Compact player bar (now handles expanded state too)
     return (
         <div className="p-2 border-b shrink-0">
             <Card className="p-3 bg-gradient-to-r from-primary/10 to-purple-500/10 border-primary/30">
@@ -380,7 +279,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                 )}
 
                 {/* Unmute banner */}
-                {isMuted && !isLoading && !hasError && !isBlobUrl && (
+                {isMuted && !isLoading && !hasError && !isBlobUrl && !isExpanded && (
                     <div
                         className="mb-3 bg-primary/20 text-primary py-2 px-3 rounded-md flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/30"
                         onClick={handleStartPlayback}
@@ -425,37 +324,158 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                             />
                         </div>
                     ) : (
-                        <div className="relative shrink-0 cursor-pointer" onClick={() => setIsExpanded(true)}>
-                            {hasError ? (
-                                <div className="w-32 h-20 rounded-md bg-destructive/10 flex flex-col items-center justify-center gap-1">
-                                    <AlertCircle className="w-6 h-6 text-destructive" />
-                                    <span className="text-xs text-destructive">Load failed</span>
-                                </div>
-                            ) : isLoading ? (
-                                <div className="w-32 h-20 rounded-md bg-muted flex items-center justify-center">
-                                    <Loader2 className="w-6 h-6 animate-spin" />
-                                </div>
-                            ) : (
-                                <video
-                                    ref={videoRef}
-                                    src={media.url}
-                                    className="rounded-md object-cover w-32 h-20"
-                                    autoPlay
-                                    muted={isMuted}
-                                    playsInline
-                                    onLoadedData={handleLoadedData}
-                                    onError={handleError}
-                                    onTimeUpdate={handleTimeUpdate}
-                                    onLoadedMetadata={handleLoadedMetadata}
-                                />
-                            )}
-                            <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Maximize2 className="w-6 h-6 text-white" />
+                        <>
+                            {/* Persistent Video Container */}
+                            <div
+                                className={cn(
+                                    "transition-all duration-300 ease-in-out",
+                                    isExpanded
+                                        ? "fixed inset-0 z-50 bg-black flex flex-col items-center justify-center"
+                                        : "relative w-32 h-20 rounded-md overflow-hidden bg-black shrink-0 cursor-pointer group"
+                                )}
+                                onClick={() => !isExpanded && setIsExpanded(true)}
+                            >
+                                {/* Close button (Expanded only) */}
+                                {isExpanded && (
+                                    <div className="absolute top-4 right-4 z-10 flex gap-2">
+                                        {isSyncing && (
+                                            <div className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Syncing...
+                                            </div>
+                                        )}
+                                        <Button variant="secondary" size="icon" onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }}>
+                                            <X className="w-5 h-5" />
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {hasError ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-destructive/10">
+                                        <AlertCircle className="w-6 h-6 text-destructive" />
+                                        <span className="text-xs text-destructive">Load failed</span>
+                                    </div>
+                                ) : isLoading ? (
+                                    <div className="w-full h-full flex items-center justify-center bg-muted">
+                                        <Loader2 className="w-6 h-6 animate-spin" />
+                                    </div>
+                                ) : (
+                                    <video
+                                        ref={videoRef}
+                                        src={media.url}
+                                        className={cn(
+                                            "transition-all",
+                                            isExpanded ? "max-w-full max-h-full rounded-none" : "w-full h-full object-cover rounded-md"
+                                        )}
+                                        autoPlay
+                                        muted={isMuted}
+                                        playsInline
+                                        onLoadedData={handleLoadedData}
+                                        onError={handleError}
+                                        onTimeUpdate={handleTimeUpdate}
+                                        onLoadedMetadata={handleLoadedMetadata}
+                                        controls={false} // Custom controls
+                                    />
+                                )}
+
+                                {/* Hover Overlay (Compact) */}
+                                {!isExpanded && !hasError && !isLoading && (
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <Maximize2 className="w-6 h-6 text-white" />
+                                    </div>
+                                )}
+
+                                {/* Playing Indicator (Compact) */}
+                                {!isExpanded && isPlaying && !hasError && (
+                                    <div className="absolute bottom-1 left-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                )}
+
+                                {/* Expanded Controls Overlay */}
+                                {isExpanded && (
+                                    <>
+                                        {/* Unmute prompt */}
+                                        {isMuted && (
+                                            <div
+                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-6 py-4 rounded-xl text-center cursor-pointer hover:scale-105 transition-transform"
+                                                onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+                                            >
+                                                <Volume2 className="w-12 h-12 mx-auto mb-2 animate-pulse" />
+                                                <p className="text-lg font-bold">Click to Enable Audio</p>
+                                                <p className="text-sm text-gray-400">Browser requires interaction</p>
+                                            </div>
+                                        )}
+
+                                        {/* Controls Bar */}
+                                        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent text-white" onClick={(e) => e.stopPropagation()}>
+                                            <div className="max-w-4xl mx-auto space-y-3">
+                                                {/* Progress bar */}
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-sm font-mono w-12">{formatTime(currentTime)}</span>
+                                                    <input
+                                                        type="range"
+                                                        min={0}
+                                                        max={duration || 100}
+                                                        value={currentTime}
+                                                        onChange={handleSeek}
+                                                        disabled={!isHost}
+                                                        className={cn(
+                                                            "flex-1 h-2 bg-gray-600 rounded-full appearance-none cursor-pointer accent-primary",
+                                                            !isHost && "opacity-50 cursor-not-allowed"
+                                                        )}
+                                                    />
+                                                    <span className="text-sm font-mono w-12">{formatTime(duration)}</span>
+                                                </div>
+
+                                                {/* Control buttons */}
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
+                                                            disabled={!isHost}
+                                                            className={cn("hover:bg-white/20 text-white", !isHost && "opacity-50")}
+                                                        >
+                                                            {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8" />}
+                                                        </Button>
+                                                        <Button
+                                                            variant={isMuted ? "destructive" : "ghost"}
+                                                            size="icon"
+                                                            onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+                                                            className="hover:bg-white/20 text-white"
+                                                        >
+                                                            {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="text-center">
+                                                        <p className="font-bold text-lg">{media.title}</p>
+                                                        <p className="text-sm opacity-80">{media.artist}</p>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        {isHost ? (
+                                                            <span className="flex items-center gap-1 text-sm bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded border border-yellow-500/30">
+                                                                <Crown className="w-4 h-4" />
+                                                                Host
+                                                            </span>
+                                                        ) : (
+                                                            <span className="flex items-center gap-1 text-sm bg-blue-500/20 text-blue-400 px-2 py-1 rounded border border-blue-500/30">
+                                                                <Users className="w-4 h-4" />
+                                                                Synced
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
-                            {isPlaying && !hasError && (
-                                <div className="absolute bottom-1 left-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                            )}
-                        </div>
+
+                            {/* Layout Placeholder when expanded */}
+                            {isExpanded && <div className="w-32 h-20 shrink-0" />}
+                        </>
                     )}
 
                     {/* Info */}

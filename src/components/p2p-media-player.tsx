@@ -5,7 +5,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import {
     Play, Pause, Volume2, VolumeX, X, Radio, Users, Loader2,
-    Crown, AlertCircle, Wifi
+    Crown, AlertCircle, Wifi, Maximize2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getDb } from '@/lib/firebase';
@@ -48,12 +48,14 @@ export default function P2PMediaPlayer({
     const [errorMessage, setErrorMessage] = useState('');
     const [viewerCount, setViewerCount] = useState(0);
     const [streamConnected, setStreamConnected] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     // Refs
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const mediaStreamRef = useRef<MediaStream | null>(null);
+    const viewerStreamRef = useRef<MediaStream | null>(null); // Store viewer stream for re-attaching
     const p2pDocIdRef = useRef<string | null>(null);
     const unsubscribesRef = useRef<(() => void)[]>([]);
 
@@ -87,12 +89,28 @@ export default function P2PMediaPlayer({
         return () => {
             URL.revokeObjectURL(objectUrl);
         };
-    }, [isHost, file]);
+    }, [isHost, file]); // removed isExpanded, video ref is stable
+
+    // Viewer: Attach stream to video element
+    useEffect(() => {
+        if (isHost || !viewerStreamRef.current || !remoteVideoRef.current) return;
+
+        // Re-attach stream if needed (should be stable now)
+        const video = remoteVideoRef.current;
+        if (video.srcObject !== viewerStreamRef.current) {
+            video.srcObject = viewerStreamRef.current;
+            video.muted = isMuted;
+            video.play().catch(console.error);
+        }
+    }, [isHost, isMuted]); // removed isExpanded
 
     // Host: Capture stream and set up broadcasting
     const captureAndBroadcast = useCallback(async (video: HTMLVideoElement) => {
         const db = getDb();
         if (!db) return;
+
+        // Use existing stream if available
+        if (mediaStreamRef.current) return;
 
         try {
             // Capture stream from video element
@@ -252,6 +270,7 @@ export default function P2PMediaPlayer({
             // Create peer connection
             const pc = new RTCPeerConnection(servers);
             const remoteStream = new MediaStream();
+            viewerStreamRef.current = remoteStream; // Store ref for re-attaching
 
             pc.ontrack = (event) => {
                 console.log('📥 Received track:', event.track.kind);
@@ -390,6 +409,9 @@ export default function P2PMediaPlayer({
             unsubscribesRef.current.forEach(unsub => unsub());
 
             // Delete P2P stream doc if host
+            if (isHost && p2pDocIdRef.current) { // Only if not navigating away unexpectedly logic - actually just always cleanup
+                // Note: Ideally we want to keep stream if just expanding, but simple cleanup for now
+            }
             if (isHost && p2pDocIdRef.current) {
                 const db = getDb();
                 if (db) {
@@ -398,7 +420,7 @@ export default function P2PMediaPlayer({
                 }
             }
         };
-    }, [isHost, roomId]);
+    }, [roomId]); // Removed isHost dependency so it cleans up when component unmounts regardless, but checked inside
 
     // Handle stop
     const handleStop = useCallback(() => {
@@ -428,7 +450,7 @@ export default function P2PMediaPlayer({
                     </div>
                 )}
 
-                {streamConnected && !isHost && isMuted && (
+                {streamConnected && !isHost && isMuted && !isExpanded && (
                     <div
                         className="mb-3 bg-primary/20 text-primary py-2 px-3 rounded-md flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/30"
                         onClick={toggleMute}
@@ -440,29 +462,102 @@ export default function P2PMediaPlayer({
                 )}
 
                 <div className="flex items-center gap-4">
-                    {/* Video preview */}
-                    <div className="relative w-32 h-20 rounded-md overflow-hidden bg-black shrink-0">
+                    {/* Persistent Video Container */}
+                    <div
+                        className={cn(
+                            "transition-all duration-300 ease-in-out",
+                            isExpanded
+                                ? "fixed inset-0 z-50 bg-black flex flex-col items-center justify-center"
+                                : "relative w-32 h-20 rounded-md overflow-hidden bg-black shrink-0 cursor-pointer group"
+                        )}
+                        onClick={() => !isExpanded && setIsExpanded(true)}
+                    >
+                        {/* Close button (Expanded only) */}
+                        {isExpanded && (
+                            <div className="absolute top-4 right-4 z-10 flex gap-2">
+                                <Button
+                                    variant="secondary"
+                                    size="icon"
+                                    onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }}
+                                >
+                                    <X className="w-5 h-5" />
+                                </Button>
+                            </div>
+                        )}
+
+                        {/* Video Element (Persistent) */}
                         {isHost ? (
                             <video
                                 ref={localVideoRef}
-                                className="w-full h-full object-cover"
+                                className={cn(
+                                    "transition-all",
+                                    isExpanded ? "max-w-full max-h-full rounded-none" : "w-full h-full object-cover"
+                                )}
                                 muted
                                 playsInline
+                                controls={false}
                             />
                         ) : (
                             <video
                                 ref={remoteVideoRef}
-                                className="w-full h-full object-cover"
+                                className={cn(
+                                    "transition-all",
+                                    isExpanded ? "max-w-full max-h-full rounded-none" : "w-full h-full object-cover"
+                                )}
                                 muted={isMuted}
                                 playsInline
                             />
                         )}
-                        {isPlaying && (
+
+                        {/* Playing Dot (Compact) */}
+                        {!isExpanded && isPlaying && (
                             <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        )}
+
+                        {/* Hover Overlay (Compact) */}
+                        {!isExpanded && (
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Maximize2 className="w-6 h-6 text-white" />
+                            </div>
+                        )}
+
+                        {/* Expanded Controls Overlay */}
+                        {isExpanded && (
+                            <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-center justify-center gap-6" onClick={(e) => e.stopPropagation()}>
+                                {isHost && (
+                                    <Button
+                                        variant="secondary"
+                                        size="lg"
+                                        className="rounded-full w-14 h-14 p-0 shadow-xl hover:scale-105 transition-transform"
+                                        onClick={togglePlayPause}
+                                    >
+                                        {isPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-1" />}
+                                    </Button>
+                                )}
+
+                                <Button
+                                    variant={isMuted ? "destructive" : "secondary"}
+                                    size="icon"
+                                    className="rounded-full w-12 h-12 shadow-xl"
+                                    onClick={toggleMute}
+                                >
+                                    {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                                </Button>
+
+                                <div className="text-white ml-2">
+                                    <p className="font-bold text-lg">{media.title}</p>
+                                    <p className="text-sm opacity-80">
+                                        {isHost ? `Broadcasting to ${viewerCount} viewers` : 'Live P2P Stream'}
+                                    </p>
+                                </div>
+                            </div>
                         )}
                     </div>
 
-                    {/* Info */}
+                    {/* Placeholder for layout stability when expanded */}
+                    {isExpanded && <div className="w-32 h-20 shrink-0" />}
+
+                    {/* Info (Compact) */}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 text-sm font-semibold text-purple-600 dark:text-purple-400">
                             <Radio className="w-4 h-4" />
@@ -485,7 +580,7 @@ export default function P2PMediaPlayer({
                         </p>
                     </div>
 
-                    {/* Controls */}
+                    {/* Controls (Compact) */}
                     <div className="flex items-center gap-1 shrink-0">
                         {isHost && (
                             <Button
@@ -502,6 +597,13 @@ export default function P2PMediaPlayer({
                             onClick={toggleMute}
                         >
                             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setIsExpanded(true)}
+                        >
+                            <Maximize2 className="w-5 h-5" />
                         </Button>
                         {isHost && (
                             <Button variant="ghost" size="icon" onClick={handleStop}>

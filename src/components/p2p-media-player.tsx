@@ -568,7 +568,7 @@ export default function P2PMediaPlayer({
                                     </div>
                                 )}
 
-                                <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col items-center justify-center gap-6" onClick={(e) => e.stopPropagation()}>
+                                <div className="absolute bottom-0 left-0 right-0 p-8 pb-16 md:pb-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col items-center justify-center gap-6" onClick={(e) => e.stopPropagation()}>
                                     {/* Progress Bar (Host Only) */}
                                     {isHost && (
                                         <div className="w-full max-w-4xl flex items-center gap-3 text-white">

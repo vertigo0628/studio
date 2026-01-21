@@ -406,7 +406,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                                         )}
 
                                         {/* Controls Bar */}
-                                        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent text-white" onClick={(e) => e.stopPropagation()}>
+                                        <div className="absolute bottom-0 left-0 right-0 p-4 pb-12 md:pb-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent text-white" onClick={(e) => e.stopPropagation()}>
                                             <div className="max-w-4xl mx-auto space-y-3">
                                                 {/* Progress bar */}
                                                 <div className="flex items-center gap-3">

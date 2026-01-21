@@ -141,12 +141,23 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
         }
     }, [isHost, isPlaying, getMediaElement, broadcastPlay, broadcastPause]);
 
-    // Toggle mute
+    // Toggle mute - and ensure playback starts when unmuting
     const toggleMute = useCallback(() => {
         const el = getMediaElement();
         if (el) {
-            el.muted = !el.muted;
-            setIsMuted(el.muted);
+            const newMutedState = !el.muted;
+            el.muted = newMutedState;
+            setIsMuted(newMutedState);
+
+            // If unmuting, also ensure the audio is playing
+            if (!newMutedState) {
+                el.play().then(() => {
+                    setIsPlaying(true);
+                    console.log('✅ Audio started playing after unmute');
+                }).catch(e => {
+                    console.error('❌ Failed to play after unmute:', e);
+                });
+            }
         }
     }, [getMediaElement]);
 
@@ -390,6 +401,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                             <audio
                                 ref={audioRef}
                                 src={media.url}
+                                autoPlay
                                 muted={isMuted}
                                 playsInline
                                 onLoadedData={handleLoadedData}
@@ -414,6 +426,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                                     ref={videoRef}
                                     src={media.url}
                                     className="rounded-md object-cover w-32 h-20"
+                                    autoPlay
                                     muted={isMuted}
                                     playsInline
                                     onLoadedData={handleLoadedData}

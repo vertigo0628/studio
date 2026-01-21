@@ -277,7 +277,7 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
         setIncomingCall(null);
     }, [roomId, incomingCall]);
 
-    // Start screen sharing
+    // Start screen sharing with hybrid audio (screen + microphone)
     const startScreenShare = useCallback(async () => {
         const db = getDb();
         if (!currentUser || !db) return;
@@ -287,30 +287,84 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
         setIsScreenSharing(true);
 
         try {
-            // Get screen media with audio
-            // Note: Audio capture depends on browser/OS support
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    displaySurface: 'monitor',
-                    logicalSurface: true,
-                    cursor: 'always',
-                } as MediaTrackConstraints,
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    sampleRate: 44100,
-                } as MediaTrackConstraints,
-            }).catch(async () => {
-                // Fallback: try without audio if not supported
-                console.log('Screen share with audio failed, trying video only');
-                return navigator.mediaDevices.getDisplayMedia({ video: true });
+            // Step 1: Get screen video (try with system audio for Chrome)
+            let screenStream: MediaStream;
+            let hasSystemAudio = false;
+
+            try {
+                // Try to get screen with system audio (Chrome/Edge only)
+                screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        displaySurface: 'monitor',
+                        cursor: 'always',
+                    } as MediaTrackConstraints,
+                    audio: true, // Request system audio
+                });
+                hasSystemAudio = screenStream.getAudioTracks().length > 0;
+                console.log('Screen share with system audio:', hasSystemAudio);
+            } catch (e) {
+                console.log('Screen share with audio failed, getting video only');
+                screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                });
+            }
+
+            // Step 2: Get microphone audio (always, for cross-browser support)
+            let micStream: MediaStream | null = null;
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    },
+                });
+                console.log('Microphone audio captured');
+            } catch (e) {
+                console.log('Microphone access denied or unavailable');
+            }
+
+            // Step 3: Create combined stream
+            const combinedStream = new MediaStream();
+
+            // Add screen video track
+            screenStream.getVideoTracks().forEach(track => {
+                combinedStream.addTrack(track);
             });
 
-            localStreamRef.current = stream;
-            setLocalStream(stream);
+            // Add audio: prefer system audio if available, otherwise use mic
+            if (hasSystemAudio) {
+                // Has system audio from screen share
+                screenStream.getAudioTracks().forEach(track => {
+                    combinedStream.addTrack(track);
+                });
+                // Also add mic audio if available (user voice + system audio)
+                if (micStream) {
+                    micStream.getAudioTracks().forEach(track => {
+                        combinedStream.addTrack(track);
+                    });
+                }
+            } else if (micStream) {
+                // No system audio, use microphone only
+                micStream.getAudioTracks().forEach(track => {
+                    combinedStream.addTrack(track);
+                });
+            }
+
+            console.log('Combined stream tracks:', {
+                video: combinedStream.getVideoTracks().length,
+                audio: combinedStream.getAudioTracks().length,
+            });
+
+            localStreamRef.current = combinedStream;
+            setLocalStream(combinedStream);
 
             // Handle when user stops sharing via browser UI
-            stream.getVideoTracks()[0].onended = () => {
+            screenStream.getVideoTracks()[0].onended = () => {
+                // Stop mic stream too
+                if (micStream) {
+                    micStream.getTracks().forEach(track => track.stop());
+                }
                 cleanup();
             };
 
@@ -318,9 +372,9 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
             const pc = new RTCPeerConnection(servers);
             peerConnectionRef.current = pc;
 
-            // Add local tracks
-            stream.getTracks().forEach(track => {
-                pc.addTrack(track, stream);
+            // Add all tracks from combined stream
+            combinedStream.getTracks().forEach(track => {
+                pc.addTrack(track, combinedStream);
             });
 
             // Handle remote stream

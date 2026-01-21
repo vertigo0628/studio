@@ -49,6 +49,8 @@ export default function P2PMediaPlayer({
     const [viewerCount, setViewerCount] = useState(0);
     const [streamConnected, setStreamConnected] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
 
     // Refs
     const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -58,6 +60,34 @@ export default function P2PMediaPlayer({
     const viewerStreamRef = useRef<MediaStream | null>(null); // Store viewer stream for re-attaching
     const p2pDocIdRef = useRef<string | null>(null);
     const unsubscribesRef = useRef<(() => void)[]>([]);
+
+    // Helper functions
+    const formatTime = (seconds: number) => {
+        if (!isFinite(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const handleTimeUpdate = () => {
+        if (isHost && localVideoRef.current) {
+            setCurrentTime(localVideoRef.current.currentTime);
+        }
+    };
+
+    const handleLoadedMetadata = () => {
+        if (isHost && localVideoRef.current) {
+            setDuration(localVideoRef.current.duration);
+            setIsLoading(false);
+        }
+    };
+
+    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!isHost || !localVideoRef.current) return;
+        const newTime = parseFloat(e.target.value);
+        localVideoRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
+    };
 
     // Host: Set up video element with local file
     useEffect(() => {
@@ -496,6 +526,8 @@ export default function P2PMediaPlayer({
                                 muted
                                 playsInline
                                 controls={false}
+                                onTimeUpdate={handleTimeUpdate}
+                                onLoadedMetadata={handleLoadedMetadata}
                             />
                         ) : (
                             <video
@@ -523,34 +555,66 @@ export default function P2PMediaPlayer({
 
                         {/* Expanded Controls Overlay */}
                         {isExpanded && (
-                            <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-center justify-center gap-6" onClick={(e) => e.stopPropagation()}>
-                                {isHost && (
-                                    <Button
-                                        variant="secondary"
-                                        size="lg"
-                                        className="rounded-full w-14 h-14 p-0 shadow-xl hover:scale-105 transition-transform"
-                                        onClick={togglePlayPause}
+                            <>
+                                {/* Unmute prompt */}
+                                {isMuted && (
+                                    <div
+                                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-6 py-4 rounded-xl text-center cursor-pointer hover:scale-105 transition-transform"
+                                        onClick={(e) => { e.stopPropagation(); toggleMute(); }}
                                     >
-                                        {isPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-1" />}
-                                    </Button>
+                                        <Volume2 className="w-12 h-12 mx-auto mb-2 animate-pulse" />
+                                        <p className="text-lg font-bold">Click to Enable Audio</p>
+                                        <p className="text-sm text-gray-400">Browser requires interaction</p>
+                                    </div>
                                 )}
 
-                                <Button
-                                    variant={isMuted ? "destructive" : "secondary"}
-                                    size="icon"
-                                    className="rounded-full w-12 h-12 shadow-xl"
-                                    onClick={toggleMute}
-                                >
-                                    {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
-                                </Button>
+                                <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col items-center justify-center gap-6" onClick={(e) => e.stopPropagation()}>
+                                    {/* Progress Bar (Host Only) */}
+                                    {isHost && (
+                                        <div className="w-full max-w-4xl flex items-center gap-3 text-white">
+                                            <span className="text-sm font-mono w-12">{formatTime(currentTime)}</span>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={duration || 100}
+                                                value={currentTime}
+                                                onChange={handleSeek}
+                                                className="flex-1 h-2 bg-gray-600 rounded-full appearance-none cursor-pointer accent-primary"
+                                            />
+                                            <span className="text-sm font-mono w-12">{formatTime(duration)}</span>
+                                        </div>
+                                    )}
 
-                                <div className="text-white ml-2">
-                                    <p className="font-bold text-lg">{media.title}</p>
-                                    <p className="text-sm opacity-80">
-                                        {isHost ? `Broadcasting to ${viewerCount} viewers` : 'Live P2P Stream'}
-                                    </p>
+                                    <div className="flex items-center gap-6">
+                                        {isHost && (
+                                            <Button
+                                                variant="secondary"
+                                                size="lg"
+                                                className="rounded-full w-14 h-14 p-0 shadow-xl hover:scale-105 transition-transform"
+                                                onClick={togglePlayPause}
+                                            >
+                                                {isPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-1" />}
+                                            </Button>
+                                        )}
+
+                                        <Button
+                                            variant={isMuted ? "destructive" : "secondary"}
+                                            size="icon"
+                                            className="rounded-full w-12 h-12 shadow-xl"
+                                            onClick={toggleMute}
+                                        >
+                                            {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                                        </Button>
+
+                                        <div className="text-white ml-2">
+                                            <p className="font-bold text-lg">{media.title}</p>
+                                            <p className="text-sm opacity-80">
+                                                {isHost ? `Broadcasting to ${viewerCount} viewers` : 'Live P2P Stream'}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            </>
                         )}
                     </div>
 

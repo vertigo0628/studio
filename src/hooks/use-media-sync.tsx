@@ -14,7 +14,7 @@ type UseMediaSyncOptions = {
 };
 
 const SYNC_THRESHOLD = 2; // Seconds difference before forcing sync
-const HEARTBEAT_INTERVAL = 5000; // Send sync update every 5 seconds
+const HEARTBEAT_INTERVAL = 1000; // Send sync update every 1 second
 
 export function useMediaSync({
     roomId,
@@ -84,14 +84,9 @@ export function useMediaSync({
         const media = getMediaElement();
         if (!media || isHost) return;
 
-        const now = Date.now();
-        const latency = (now - state.updatedAt) / 1000; // Convert to seconds
-
-        // Calculate the expected current time accounting for latency
-        let expectedTime = state.currentTime;
-        if (state.isPlaying) {
-            expectedTime += latency * (state.playbackRate || 1);
-        }
+        // No latency compensation to avoid clock skew issues (viewer getting ahead)
+        // We rely on frequent heartbeats (every 1s) to keep sync
+        const expectedTime = state.currentTime;
 
         const timeDiff = Math.abs(media.currentTime - expectedTime);
 

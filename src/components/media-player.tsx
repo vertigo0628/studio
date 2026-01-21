@@ -366,8 +366,21 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
     return (
         <div className="p-2 border-b shrink-0">
             <Card className="p-3 bg-gradient-to-r from-primary/10 to-purple-500/10 border-primary/30">
+                {/* P2P blob URL error for viewers */}
+                {isBlobUrl && !isHost && (
+                    <div className="mb-3 bg-destructive/20 text-destructive py-2 px-3 rounded-md text-sm">
+                        <div className="flex items-center gap-2 font-medium">
+                            <AlertCircle className="w-4 h-4" />
+                            P2P streaming not available for viewers
+                        </div>
+                        <p className="text-xs mt-1 text-destructive/80">
+                            The host is streaming from their device. Ask them to use "Upload" instead to share with everyone.
+                        </p>
+                    </div>
+                )}
+
                 {/* Unmute banner */}
-                {isMuted && !isLoading && !hasError && (
+                {isMuted && !isLoading && !hasError && !isBlobUrl && (
                     <div
                         className="mb-3 bg-primary/20 text-primary py-2 px-3 rounded-md flex items-center justify-center gap-2 cursor-pointer hover:bg-primary/30"
                         onClick={handleStartPlayback}
@@ -377,6 +390,7 @@ export default function MediaPlayer({ media, onStop, roomId, userId, isHost }: M
                         <Volume2 className="w-4 h-4" />
                     </div>
                 )}
+
 
                 <div className="flex items-center gap-4">
                     {/* Video/Audio Preview */}

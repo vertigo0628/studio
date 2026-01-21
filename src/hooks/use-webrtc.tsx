@@ -287,11 +287,25 @@ export function useWebRTC(roomId: string, currentUser: User | null) {
         setIsScreenSharing(true);
 
         try {
-            // Get screen media
+            // Get screen media with audio
+            // Note: Audio capture depends on browser/OS support
             const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: true,
+                video: {
+                    displaySurface: 'monitor',
+                    logicalSurface: true,
+                    cursor: 'always',
+                } as MediaTrackConstraints,
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100,
+                } as MediaTrackConstraints,
+            }).catch(async () => {
+                // Fallback: try without audio if not supported
+                console.log('Screen share with audio failed, trying video only');
+                return navigator.mediaDevices.getDisplayMedia({ video: true });
             });
+
             localStreamRef.current = stream;
             setLocalStream(stream);
 

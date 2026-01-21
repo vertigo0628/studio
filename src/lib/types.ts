@@ -57,7 +57,7 @@ export type Call = {
   callerId: string;
   callerName: string;
   callerAvatar: string;
-  type: 'audio' | 'video';
+  type: 'audio' | 'video' | 'screen';
   status: 'ringing' | 'connected' | 'ended';
   offer?: RTCSessionDescriptionInit;
   answer?: RTCSessionDescriptionInit;

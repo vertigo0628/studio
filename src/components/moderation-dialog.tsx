@@ -74,6 +74,9 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia, r
 
   // Handle P2P streaming start
   const handleP2PStart = (file: File) => {
+    // Create object URL for local playback
+    const objectUrl = URL.createObjectURL(file);
+
     const media: Media = {
       type: file.type.startsWith('audio/') ? 'audio' : 'video',
       title: file.name,
@@ -81,13 +84,13 @@ export default function ModerationDialog({ isOpen, onOpenChange, onStartMedia, r
       thumbnail: file.type.startsWith('audio/')
         ? PlaceHolderImages.find(p => p.id === 'album-art-1')?.imageUrl || ''
         : PlaceHolderImages.find(p => p.id === 'video-thumbnail-1')?.imageUrl || '',
-      url: '', // Will be handled by WebRTC
+      url: objectUrl, // Object URL for local file playback
       sourceType: 'p2p',
     };
 
     toast({
       title: "P2P Stream Started",
-      description: "Streaming directly from your device to viewers",
+      description: "Playing from your device. Note: Only you can see this stream currently.",
     });
 
     onStartMedia(media);

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { getDb } from '@/lib/firebase';
 import {
     doc, collection, addDoc, onSnapshot, updateDoc, deleteDoc,
-    serverTimestamp, query, where, getDocs
+    serverTimestamp, query, where, getDocs, orderBy, limit
 } from 'firebase/firestore';
 import type { User, Media } from '@/lib/types';
 
@@ -101,12 +101,18 @@ export default function P2PMediaPlayer({
         video.src = objectUrl;
         video.muted = true; // Mute local to prevent echo
 
-        video.onloadeddata = async () => {
+        // Use canplaythrough for more reliable capture on all browsers
+        video.oncanplaythrough = async () => {
+            // Only initialize once
+            if (mediaStreamRef.current) return;
+
             setIsLoading(false);
 
             // Must play briefly to initialize tracks for captureStream() in some browsers
             try {
                 await video.play();
+                // Small delay to ensure decoder is fully initialized
+                await new Promise(r => setTimeout(r, 200));
                 video.pause(); // Pause immediately - will resume when viewer connects
                 console.log('🎬 Video initialized for capture');
             } catch (e) {
@@ -326,21 +332,29 @@ export default function P2PMediaPlayer({
         setErrorMessage('Connecting to host...');
 
         try {
-            // Find active P2P stream for this room
+            // Find the NEWEST active P2P stream for this room (avoid stale streams)
             const p2pRef = collection(db, 'rooms', roomId, 'p2pStreams');
-            const q = query(p2pRef, where('status', '==', 'active'));
+            const q = query(
+                p2pRef,
+                where('status', '==', 'active'),
+                orderBy('createdAt', 'desc'),
+                limit(1)
+            );
             const snapshot = await getDocs(q);
 
             if (snapshot.empty) {
+                console.log('❌ No active P2P stream found');
                 setHasError(true);
                 setErrorMessage('No active P2P stream found');
                 setIsLoading(false);
+                isConnectingRef.current = false;
                 return;
             }
 
             const p2pDoc = snapshot.docs[0];
             const p2pDocId = p2pDoc.id;
-            console.log('🔗 Found P2P stream:', p2pDocId);
+            const p2pData = p2pDoc.data();
+            console.log('🔗 Found P2P stream:', p2pDocId, 'created:', p2pData.createdAt?.toDate?.());
 
             // Create peer connection
             const pc = new RTCPeerConnection(servers);

@@ -176,8 +176,26 @@ export default function P2PMediaPlayer({
                 }
             }
 
-            // Create P2P stream document
+            // Cleanup: Mark all existing active streams from this host as inactive
             const p2pRef = collection(db, 'rooms', roomId, 'p2pStreams');
+            const existingStreams = await getDocs(query(
+                p2pRef,
+                where('status', '==', 'active')
+            ));
+
+            const cleanupPromises = existingStreams.docs.map(async (docSnapshot) => {
+                try {
+                    await updateDoc(doc(db, 'rooms', roomId, 'p2pStreams', docSnapshot.id), {
+                        status: 'inactive'
+                    });
+                    console.log('🧹 Cleaned up old stream:', docSnapshot.id);
+                } catch (e) {
+                    console.warn('⚠️ Failed to cleanup stream:', docSnapshot.id);
+                }
+            });
+            await Promise.all(cleanupPromises);
+
+            // Create new P2P stream document
             const p2pDoc = await addDoc(p2pRef, {
                 hostId: userId,
                 fileName: file?.name || media.title,
@@ -186,6 +204,7 @@ export default function P2PMediaPlayer({
                 createdAt: serverTimestamp(),
             });
             p2pDocIdRef.current = p2pDoc.id;
+            console.log('📺 Created new P2P stream:', p2pDoc.id);
 
             // Listen for viewer connection requests
             const requestsRef = collection(db, 'rooms', roomId, 'p2pStreams', p2pDoc.id, 'requests');

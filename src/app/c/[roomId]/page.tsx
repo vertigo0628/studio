@@ -14,8 +14,8 @@ export default function ChatPage() {
 
     return (
         <main className="h-screen w-screen flex overflow-hidden">
-            <Sidebar />
-            <div className="flex-1 overflow-hidden">
+            <Sidebar className="hidden md:flex" />
+            <div className="flex-1 overflow-hidden w-full">
                 <ChatLayout roomId={roomId} />
             </div>
         </main>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, Video, ScreenShare, Music, Clapperboard, Trash2, LogOut } from 'lucide-react';
+import { Phone, Video, ScreenShare, Music, Clapperboard, Trash2, LogOut, ArrowLeft } from 'lucide-react';
 import UserAvatar from '@/components/user-avatar';
 import { UserDetailsDialog } from './user-details-dialog';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,8 @@ import ModerationDialog from './moderation-dialog';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Settings } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { RoomSettingsDialog } from './room-settings-dialog';
 import { getDb } from '@/lib/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -57,6 +59,8 @@ export default function ChatHeader({ partner, onStartMedia, onP2PFile, onStartCa
         return () => unsubscribe();
     }, [roomId]);
 
+    const router = useRouter(); // Use navigation router
+
     const handleCall = (type: 'audio' | 'video') => {
         toast({
             title: `Starting ${type} call...`,
@@ -69,6 +73,15 @@ export default function ChatHeader({ partner, onStartMedia, onP2PFile, onStartCa
         <>
             <div className="p-4 flex items-center justify-between border-b shrink-0">
                 <div className="flex items-center gap-4">
+                    {/* Mobile Back Button */}
+                    <div className="md:hidden mr-1">
+                        <Link href="/">
+                            <Button variant="ghost" size="icon" className="-ml-2">
+                                <ArrowLeft className="w-5 h-5" />
+                            </Button>
+                        </Link>
+                    </div>
+
                     <UserDetailsDialog user={partner}>
                         <div className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity">
                             <UserAvatar user={partner} />

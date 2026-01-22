@@ -17,7 +17,7 @@ import { UserListDialog } from './user-list-dialog';
 import { UserProfileDialog } from './user-profile-dialog';
 import { ThemeToggle } from './theme-toggle';
 
-export default function Sidebar() {
+export default function Sidebar({ className }: { className?: string }) {
     const { user, signInWithGoogle, signOut } = useAuth();
     const [rooms, setRooms] = useState<Room[]>([]);
     const router = useRouter();
@@ -124,7 +124,7 @@ export default function Sidebar() {
     };
 
     return (
-        <div className="w-80 border-r h-full flex flex-col bg-muted/20 shrink-0">
+        <div className={cn("w-80 border-r h-full flex flex-col bg-muted/20 shrink-0", className)}>
             <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10">
                 <h2 className="font-bold text-xl">Chats</h2>
                 <div className="flex gap-1">

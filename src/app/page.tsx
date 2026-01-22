@@ -6,8 +6,8 @@ import { MessageSquareDashed } from 'lucide-react';
 export default function Home() {
   return (
     <main className="h-screen w-screen flex overflow-hidden">
-      <Sidebar />
-      <div className="flex-1 flex flex-col items-center justify-center bg-background p-4 text-center">
+      <Sidebar className="w-full md:w-80 border-r-0 md:border-r" />
+      <div className="hidden md:flex flex-1 flex-col items-center justify-center bg-background p-4 text-center">
         <div className="w-full max-w-md space-y-4">
           <div className="flex justify-center">
             <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center">

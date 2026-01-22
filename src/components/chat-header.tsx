@@ -71,7 +71,7 @@ export default function ChatHeader({ partner, onStartMedia, onP2PFile, onStartCa
 
     return (
         <>
-            <div className="p-4 flex items-center justify-between border-b shrink-0">
+            <div className="p-4 flex items-center justify-between border-b shrink-0 sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="flex items-center gap-4">
                     {/* Mobile Back Button */}
                     <div className="md:hidden mr-1">

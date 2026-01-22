@@ -351,29 +351,31 @@ export default function P2PMediaPlayer({
         setErrorMessage('Connecting to host...');
 
         try {
-            // Find the NEWEST active P2P stream for this room (avoid stale streams)
+            // Find active P2P streams (simple query, no index required)
             const p2pRef = collection(db, 'rooms', roomId, 'p2pStreams');
-            const q = query(
-                p2pRef,
-                where('status', '==', 'active'),
-                orderBy('createdAt', 'desc'),
-                limit(1)
-            );
+            const q = query(p2pRef, where('status', '==', 'active'));
             const snapshot = await getDocs(q);
 
             if (snapshot.empty) {
-                console.log('❌ No active P2P stream found');
+                console.log('❌ No active P2P stream found. Is the host broadcasting?');
                 setHasError(true);
-                setErrorMessage('No active P2P stream found');
+                setErrorMessage('No active stream. Wait for host to start.');
                 setIsLoading(false);
                 isConnectingRef.current = false;
                 return;
             }
 
-            const p2pDoc = snapshot.docs[0];
+            // Sort client-side to get newest stream (avoids index requirement)
+            const sortedDocs = snapshot.docs.sort((a, b) => {
+                const aTime = a.data().createdAt?.toMillis?.() || 0;
+                const bTime = b.data().createdAt?.toMillis?.() || 0;
+                return bTime - aTime; // Newest first
+            });
+
+            const p2pDoc = sortedDocs[0];
             const p2pDocId = p2pDoc.id;
             const p2pData = p2pDoc.data();
-            console.log('🔗 Found P2P stream:', p2pDocId, 'created:', p2pData.createdAt?.toDate?.());
+            console.log('🔗 Found P2P stream:', p2pDocId, 'host:', p2pData.hostId);
 
             // Create peer connection
             const pc = new RTCPeerConnection(servers);

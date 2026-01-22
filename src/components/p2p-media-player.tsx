@@ -145,10 +145,24 @@ export default function P2PMediaPlayer({
             const stream = (video as HTMLVideoElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
             mediaStreamRef.current = stream;
 
+            const vTracks = stream.getVideoTracks();
             console.log('📡 Captured stream:', {
-                videoTracks: stream.getVideoTracks().length,
+                id: stream.id,
+                active: stream.active,
+                videoTracks: vTracks.length,
                 audioTracks: stream.getAudioTracks().length,
+                firstTrackMuted: vTracks[0]?.muted
             });
+
+            if (vTracks.length === 0) {
+                console.warn('⚠️ No video tracks in captured stream! Retrying without FPS cap...');
+                // Fallback to default capture if 30fps fails (sometimes helps)
+                const backupStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream();
+                if (backupStream.getVideoTracks().length > 0) {
+                    mediaStreamRef.current = backupStream;
+                    console.log('✅ Fallback capture succeeded');
+                }
+            }
 
             // Create P2P stream document
             const p2pRef = collection(db, 'rooms', roomId, 'p2pStreams');
@@ -200,8 +214,17 @@ export default function P2PMediaPlayer({
             peerConnectionsRef.current.set(requestId, pc);
 
             // Add tracks to send to viewer
+            if (!stream) {
+                console.error('❌ No stream available to send to viewer', data.viewerId);
+                return;
+            }
+
+            const videoTracks = stream.getVideoTracks();
+            console.log(`🎥 Adding ${videoTracks.length} video tracks to connection for ${data.viewerId}`);
+
             // Add tracks to send to viewer
             stream.getTracks().forEach(track => {
+                console.log(`   - Adding track: ${track.kind} (${track.id}) enabled:${track.enabled} muted:${track.muted}`);
                 pc.addTrack(track, stream);
             });
 

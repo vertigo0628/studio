@@ -101,9 +101,19 @@ export default function P2PMediaPlayer({
         video.src = objectUrl;
         video.muted = true; // Mute local to prevent echo
 
-        video.onloadeddata = () => {
+        video.onloadeddata = async () => {
             setIsLoading(false);
-            // Capture the stream for WebRTC immediately but wait for viewer to play
+
+            // Must play briefly to initialize tracks for captureStream() in some browsers
+            try {
+                await video.play();
+                video.pause(); // Pause immediately - will resume when viewer connects
+                console.log('🎬 Video initialized for capture');
+            } catch (e) {
+                console.warn('⚠️ Could not auto-play for capture, proceeding anyway');
+            }
+
+            // Capture the stream for WebRTC
             captureAndBroadcast(video);
         };
 

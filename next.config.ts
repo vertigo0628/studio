@@ -5,34 +5,36 @@ const withPWA = withPWAInit({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development',
   register: true,
-  skipWaiting: true,
-  buildExcludes: [/middleware-manifest\.json$/],
-  runtimeCaching: [
-    {
-      urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*$/,
-      handler: 'NetworkOnly',
-    },
-    {
-      urlPattern: /\/api\/.*/,
-      handler: 'NetworkOnly',
-    },
-    {
-      urlPattern: /^https:\/\/.*\.google\.com\/.*$/,
-      handler: 'NetworkOnly',
-    },
-    // Default caching for other assets
-    {
-      urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|css|js|woff2?)$/i,
-      handler: 'StaleWhileRevalidate',
-      options: {
-        cacheName: 'static-assets',
-        expiration: {
-          maxEntries: 100,
-          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+  workboxOptions: {
+    skipWaiting: true,
+    exclude: [/middleware-manifest\.json$/],
+    runtimeCaching: [
+      {
+        urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*$/,
+        handler: 'NetworkOnly',
+      },
+      {
+        urlPattern: /\/api\/.*/,
+        handler: 'NetworkOnly',
+      },
+      {
+        urlPattern: /^https:\/\/.*\.google\.com\/.*$/,
+        handler: 'NetworkOnly',
+      },
+      // Default caching for other assets
+      {
+        urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|css|js|woff2?)$/i,
+        handler: 'StaleWhileRevalidate',
+        options: {
+          cacheName: 'static-assets',
+          expiration: {
+            maxEntries: 100,
+            maxAgeSeconds: 24 * 60 * 60, // 24 hours
+          },
         },
       },
-    },
-  ],
+    ],
+  },
 });
 
 const nextConfig: NextConfig = {

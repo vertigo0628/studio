@@ -103,11 +103,8 @@ export default function P2PMediaPlayer({
 
         video.onloadeddata = () => {
             setIsLoading(false);
-            video.play().then(() => {
-                setIsPlaying(true);
-                // Capture the stream for WebRTC
-                captureAndBroadcast(video);
-            }).catch(e => console.error('Play failed:', e));
+            // Capture the stream for WebRTC immediately but wait for viewer to play
+            captureAndBroadcast(video);
         };
 
         video.onerror = () => {
@@ -253,6 +250,13 @@ export default function P2PMediaPlayer({
                 console.log(`Viewer ${data.viewerId} connection state:`, pc.connectionState);
                 if (pc.connectionState === 'connected') {
                     setViewerCount(prev => prev + 1);
+
+                    // Auto-start playback on first viewer connection
+                    const video = localVideoRef.current;
+                    if (video && video.paused) {
+                        console.log('👥 First viewer connected, starting playback...');
+                        video.play().then(() => setIsPlaying(true)).catch(console.error);
+                    }
                 } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
                     setViewerCount(prev => Math.max(0, prev - 1));
                     pc.close();

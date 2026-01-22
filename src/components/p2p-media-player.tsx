@@ -357,12 +357,12 @@ export default function P2PMediaPlayer({
                         setIsPlaying(true);
                         setStreamConnected(true);
                         console.log('✅ P2P stream connected!');
-                        // Restore user mute preference if they wanted it unmuted,
-                        // but only after a short delay or interaction?
-                        // Actually, better to leave it muted and let user unmute to be safe.
                     }).catch(e => {
-                        console.log('Autoplay blocked, user needs to click');
+                        console.log('Autoplay blocked, user needs to click to unmute');
+                        // Still mark as connected so the video element displays
                         setIsLoading(false);
+                        setStreamConnected(true);
+                        setIsPlaying(false); // Paused until user clicks
                     });
                 }
             };
@@ -436,11 +436,12 @@ export default function P2PMediaPlayer({
 
             peerConnectionsRef.current.set('viewer', pc);
 
-        } finally {
-            // Reset connecting flag after a delay to allow stable connection
-            setTimeout(() => {
-                isConnectingRef.current = false;
-            }, 2000);
+        } catch (e) {
+            console.error('Failed to connect to P2P stream:', e);
+            setHasError(true);
+            setErrorMessage('Failed to connect to P2P stream');
+            setIsLoading(false);
+            isConnectingRef.current = false;
         }
     }, [roomId, userId]); // Removed isMuted dependency
 

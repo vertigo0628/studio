@@ -285,10 +285,14 @@ export default function P2PMediaPlayer({
 
 
 
+    const isConnectingRef = useRef(false);
+
     const connectToP2PStream = useCallback(async () => {
+        if (isConnectingRef.current) return;
         const db = getDb();
         if (!db) return;
 
+        isConnectingRef.current = true;
         setIsLoading(true);
         setErrorMessage('Connecting to host...');
 
@@ -323,12 +327,16 @@ export default function P2PMediaPlayer({
                 // Attach to video element
                 if (remoteVideoRef.current) {
                     remoteVideoRef.current.srcObject = remoteStream;
-                    remoteVideoRef.current.muted = isMuted;
+                    // Always start muted to allow autoplay
+                    remoteVideoRef.current.muted = true;
                     remoteVideoRef.current.play().then(() => {
                         setIsLoading(false);
                         setIsPlaying(true);
                         setStreamConnected(true);
                         console.log('✅ P2P stream connected!');
+                        // Restore user mute preference if they wanted it unmuted,
+                        // but only after a short delay or interaction?
+                        // Actually, better to leave it muted and let user unmute to be safe.
                     }).catch(e => {
                         console.log('Autoplay blocked, user needs to click');
                         setIsLoading(false);
@@ -405,13 +413,13 @@ export default function P2PMediaPlayer({
 
             peerConnectionsRef.current.set('viewer', pc);
 
-        } catch (e) {
-            console.error('Failed to connect to P2P stream:', e);
-            setHasError(true);
-            setErrorMessage('Failed to connect to P2P stream');
-            setIsLoading(false);
+        } finally {
+            // Reset connecting flag after a delay to allow stable connection
+            setTimeout(() => {
+                isConnectingRef.current = false;
+            }, 2000);
         }
-    }, [roomId, userId, isMuted]);
+    }, [roomId, userId]); // Removed isMuted dependency
 
     // Trigger connection for viewer
     useEffect(() => {

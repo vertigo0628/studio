@@ -141,7 +141,8 @@ export default function P2PMediaPlayer({
 
         try {
             // Capture stream from video element
-            const stream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream();
+            // Capture stream from video element with capped FPS for stability
+            const stream = (video as HTMLVideoElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
             mediaStreamRef.current = stream;
 
             console.log('📡 Captured stream:', {
@@ -199,9 +200,22 @@ export default function P2PMediaPlayer({
             peerConnectionsRef.current.set(requestId, pc);
 
             // Add tracks to send to viewer
+            // Add tracks to send to viewer
             stream.getTracks().forEach(track => {
                 pc.addTrack(track, stream);
             });
+
+            // Optimize transceiver for video quality
+            const transceiver = pc.getTransceivers().find(t => t.sender.track?.kind === 'video');
+            if (transceiver && transceiver.sender) {
+                const params = transceiver.sender.getParameters();
+                if (!params.encodings) {
+                    params.encodings = [{}];
+                }
+                params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps cap
+                params.encodings[0].networkPriority = 'high';
+                transceiver.sender.setParameters(params).catch(console.error);
+            }
 
             // Handle ICE candidates
             pc.onicecandidate = async (event) => {

@@ -436,6 +436,9 @@ export default function P2PMediaPlayer({
 
             peerConnectionsRef.current.set('viewer', pc);
 
+            // Mark as successfully connected (allow reconnection if needed later)
+            // Keep isConnectingRef true to prevent duplicate connections during this session
+
         } catch (e) {
             console.error('Failed to connect to P2P stream:', e);
             setHasError(true);
@@ -445,12 +448,13 @@ export default function P2PMediaPlayer({
         }
     }, [roomId, userId]); // Removed isMuted dependency
 
-    // Trigger connection for viewer
+    // Trigger connection for viewer - only run once on mount
     useEffect(() => {
-        if (!isHost) {
+        if (!isHost && roomId && userId) {
             connectToP2PStream();
         }
-    }, [isHost, connectToP2PStream]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isHost, roomId, userId]); // Intentionally excluding connectToP2PStream to prevent re-runs
 
     // Toggle mute
     const toggleMute = useCallback(() => {

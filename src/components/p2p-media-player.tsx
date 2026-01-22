@@ -118,18 +118,14 @@ export default function P2PMediaPlayer({
         };
     }, [isHost, file]); // removed isExpanded, video ref is stable
 
-    // Viewer: Attach stream to video element
+    // Viewer: Update mute state on video element (don't re-attach or replay!)
     useEffect(() => {
-        if (isHost || !viewerStreamRef.current || !remoteVideoRef.current) return;
-
-        // Re-attach stream if needed (should be stable now)
+        if (isHost) return;
         const video = remoteVideoRef.current;
-        if (video.srcObject !== viewerStreamRef.current) {
-            video.srcObject = viewerStreamRef.current;
+        if (video) {
             video.muted = isMuted;
-            video.play().catch(console.error);
         }
-    }, [isHost, isMuted]); // removed isExpanded
+    }, [isHost, isMuted]);
 
     // Host: Capture stream and set up broadcasting
     const captureAndBroadcast = useCallback(async (video: HTMLVideoElement) => {

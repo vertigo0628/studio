@@ -386,13 +386,24 @@ export default function P2PMediaPlayer({
             const requestsRef = collection(
                 db, 'rooms', roomId, 'p2pStreams', p2pDocId, 'requests'
             );
-            const requestDoc = await addDoc(requestsRef, {
-                viewerId: userId,
-                offer: { type: offer.type, sdp: offer.sdp },
-                type: 'offer',
-                status: 'pending',
-                createdAt: serverTimestamp(),
-            });
+            let requestDoc;
+            try {
+                requestDoc = await addDoc(requestsRef, {
+                    viewerId: userId,
+                    offer: { type: offer.type, sdp: offer.sdp },
+                    type: 'offer',
+                    status: 'pending',
+                    createdAt: serverTimestamp(),
+                });
+                console.log('📨 Sent connection request:', requestDoc.id);
+            } catch (signalError) {
+                console.error('❌ Signaling failed (ad blocker?):', signalError);
+                setHasError(true);
+                setErrorMessage('Connection blocked. Disable ad blocker and refresh.');
+                setIsLoading(false);
+                isConnectingRef.current = false;
+                return;
+            }
 
             // Handle ICE candidates
             pc.onicecandidate = async (event) => {

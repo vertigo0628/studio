@@ -158,10 +158,10 @@ export default function Sidebar({ className }: { className?: string }) {
                     >
                         <Avatar>
                             <AvatarImage src={room.avatar} />
-                            <AvatarFallback>{room.name.substring(0, 2)}</AvatarFallback>
+                            <AvatarFallback>{(room.name || "?").substring(0, 2)}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 overflow-hidden">
-                            <div className="font-semibold truncate">{room.name}</div>
+                            <div className="font-semibold truncate">{room.name || "Unnamed Room"}</div>
                             <div className="text-xs text-muted-foreground truncate">{room.lastMessage}</div>
                         </div>
                         {/* Only show delete if user is owner or if it's a public room (anyone can clean up for now, or maybe restrict?) 

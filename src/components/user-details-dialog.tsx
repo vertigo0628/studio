@@ -44,7 +44,7 @@ export function UserDetailsDialog({ user: targetUser, children }: UserDetailsDia
             }
 
             const roomRef = await addDoc(roomsRef, {
-                name: targetUser.name,
+                name: targetUser.name || 'Unknown User',
                 type: 'dm',
                 avatar: targetUser.avatar,
                 createdAt: serverTimestamp(),
@@ -120,7 +120,7 @@ END:VCARD`;
                     <div className="relative">
                         <Avatar className="w-24 h-24">
                             <AvatarImage src={targetUser.avatar} />
-                            <AvatarFallback>{targetUser.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            <AvatarFallback>{(targetUser.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         {targetUser.status && (
                             <div className={`absolute bottom-0 right-0 p-1 bg-background rounded-full border`}>

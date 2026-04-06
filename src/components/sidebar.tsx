@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { UserListDialog } from './user-list-dialog';
 import { UserProfileDialog } from './user-profile-dialog';
 import { ThemeToggle } from './theme-toggle';
+import { CreateRoomDialog } from './create-room-dialog';
 
 export default function Sidebar({ className }: { className?: string }) {
     const { user, signInWithGoogle, signOut } = useAuth();
@@ -74,33 +75,7 @@ export default function Sidebar({ className }: { className?: string }) {
         return () => unsubscribe();
     }, [user]); // Re-run when user changes
 
-    const handleCreateRoom = async () => {
-        const db = getDb();
-        if (!db) return;
-        try {
-            // Pick a random avatar for the room
-            const randomAvatar = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)].imageUrl;
 
-            const roomRef = await addDoc(collection(db, 'rooms'), {
-                name: 'New Chat',
-                avatar: randomAvatar,
-                updatedAt: serverTimestamp(),
-                lastMessage: 'Room created',
-                ownerId: user?.id,
-                memberIds: user ? [user.id] : [],
-                type: 'public' // Default to public for "+" button, or make it private? User asked for private.
-                // Let's make it 'private' if user is signed in, or just add them as member.
-                // Re-reading requirements: "Private Rooms", "Group/Admin Controls".
-                // Let's default to PRIVATE but with just the creator.
-                // Actually, if it's "New Chat", usually it's empty. 
-                // Let's set it as 'private' type.
-            });
-
-            router.push(`/c/${roomRef.id}`);
-        } catch (error) {
-            console.error("Error creating room:", error);
-        }
-    };
 
     const handleDeleteRoom = async (e: React.MouseEvent, roomId: string) => {
         e.preventDefault(); // Prevent navigation
@@ -134,10 +109,7 @@ export default function Sidebar({ className }: { className?: string }) {
                             <span className="sr-only">Contacts</span>
                         </Button>
                     </UserListDialog>
-                    <Button size="icon" variant="ghost" onClick={handleCreateRoom} title="New Room">
-                        <Plus className="w-5 h-5" />
-                        <span className="sr-only">New Chat</span>
-                    </Button>
+                    <CreateRoomDialog />
                 </div>
             </div>
 

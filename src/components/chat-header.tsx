@@ -82,18 +82,30 @@ export default function ChatHeader({ partner, onStartMedia, onP2PFile, onStartCa
                         </Link>
                     </div>
 
-                    <UserDetailsDialog user={partner}>
-                        <div className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity">
-                            <UserAvatar user={partner} />
-                            <div>
-                                <h2 className="text-lg font-bold font-headline">{partner.name}</h2>
-                                <p className="text-xs text-green-500 flex items-center gap-1.5">
-                                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                                    Online
-                                </p>
+                    {room && room.type !== 'dm' ? (
+                        <RoomSettingsDialog room={room} members={members}>
+                            <div className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity">
+                                <UserAvatar user={partner} />
+                                <div>
+                                    <h2 className="text-lg font-bold font-headline">{partner.name}</h2>
+                                    <p className="text-xs text-muted-foreground">{members.length} participants</p>
+                                </div>
                             </div>
-                        </div>
-                    </UserDetailsDialog>
+                        </RoomSettingsDialog>
+                    ) : (
+                        <UserDetailsDialog user={partner}>
+                            <div className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity">
+                                <UserAvatar user={partner} />
+                                <div>
+                                    <h2 className="text-lg font-bold font-headline">{partner.name}</h2>
+                                    <p className="text-xs text-green-500 flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                        Online
+                                    </p>
+                                </div>
+                            </div>
+                        </UserDetailsDialog>
+                    )}
                 </div>
                 <div className="flex items-center gap-1">
                     {room && (
